@@ -59,11 +59,11 @@ export default function InstitutesPage() {
             </ul>
           </Reveal>
           <Reveal delay={0.1}>
-            <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border bg-gradient-to-br from-brand-500 to-brand-700 shadow-2xl">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border bg-slate-100 shadow-2xl ring-1 ring-brand-500/10">
               <img
                 src="https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=900&auto=format&fit=crop"
                 alt="Institute dashboard"
-                className="h-full w-full object-cover opacity-80 mix-blend-luminosity"
+                className="h-full w-full object-cover"
               />
             </div>
           </Reveal>

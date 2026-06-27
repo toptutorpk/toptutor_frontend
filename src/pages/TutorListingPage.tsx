@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { FilterPanel } from '@/components/search/FilterPanel';
-import { TutorCard, TutorCardSkeleton } from '@/components/cards/TutorCard';
+import { TutorCard, TutorListCardSkeleton } from '@/components/cards/TutorCard';
 import { Pagination } from '@/components/common/Pagination';
 import { NoResults, ErrorState } from '@/components/common/StateViews';
 import { useTutors } from '@/hooks/useTutors';
@@ -156,18 +156,18 @@ export default function TutorListingPage() {
             {isError ? (
               <ErrorState onRetry={() => refetch()} />
             ) : isLoading ? (
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <TutorCardSkeleton key={i} />
+              <div className="space-y-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TutorListCardSkeleton key={i} />
                 ))}
               </div>
             ) : data && data.items.length === 0 ? (
               <NoResults onReset={reset} />
             ) : (
               <>
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="space-y-4">
                   {data?.items.map((t, i) => (
-                    <TutorCard key={t.id} tutor={t} index={i} />
+                    <TutorCard key={t.id} tutor={t} index={i} variant="list" />
                   ))}
                 </div>
                 <Pagination

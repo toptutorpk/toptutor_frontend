@@ -11,7 +11,7 @@ interface LogoProps {
 export function Logo({ className, showText = true, to = '/' }: LogoProps) {
   return (
     <Link to={to} className={cn('flex items-center gap-2.5 group', className)} aria-label={APP_NAME}>
-      <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-[0_6px_18px_-6px_rgba(13,148,136,0.7)] transition-transform group-hover:scale-105">
+      <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-[0_6px_18px_-6px_rgba(37,99,235,0.7)] transition-transform group-hover:scale-105">
         <svg viewBox="0 0 32 32" className="h-5 w-5 text-white" fill="currentColor" aria-hidden>
           <path d="M9 13.5L16 9l7 4.5-7 4.5-7-4.5z" />
           <path

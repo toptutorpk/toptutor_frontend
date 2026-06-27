@@ -169,6 +169,7 @@ export const TUTORS: Tutor[] = SEEDS.map((s, i) => {
     reviews: buildReviews(`t${i + 1}`, s.reviews, s.rating),
     isPremium: s.premium,
     isFavorite: i % 4 === 0,
+    isOnline: i % 3 !== 1, // ~two-thirds shown as currently active
   };
 });
 

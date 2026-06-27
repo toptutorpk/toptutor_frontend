@@ -120,6 +120,7 @@ export interface Tutor {
   reviews: Review[];
   isPremium?: boolean;
   isFavorite?: boolean;
+  isOnline?: boolean;
 }
 
 export interface Subject {

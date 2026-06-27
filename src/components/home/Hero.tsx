@@ -176,14 +176,16 @@ function HeroVisual() {
       transition={{ duration: 0.7, delay: 0.2 }}
       className="relative mx-auto hidden w-full max-w-md lg:block"
     >
-      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border bg-gradient-to-br from-brand-500 to-brand-700 shadow-2xl">
+      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border bg-slate-100 shadow-2xl ring-1 ring-brand-500/10">
         <img
           src="https://images.unsplash.com/photo-1571260899304-425eee4c7efc?q=80&w=800&auto=format&fit=crop"
           alt="A verified tutor teaching a student"
-          className="h-full w-full object-cover mix-blend-luminosity opacity-90"
+          className="h-full w-full object-cover"
           loading="eager"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-900/60 to-transparent" />
+        {/* Subtle bottom gradient only — keeps the photo fully visible while
+            giving the floating cards contrast. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-slate-900/40 to-transparent" />
       </div>
 
       {/* Floating verified card */}
