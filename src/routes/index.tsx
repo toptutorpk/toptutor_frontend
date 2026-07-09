@@ -22,6 +22,7 @@ const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
 const SignupChoicePage = lazy(() => import('@/pages/auth/SignupChoicePage'));
 const StudentSignupPage = lazy(() => import('@/pages/auth/StudentSignupPage'));
 const TutorSignupPage = lazy(() => import('@/pages/auth/TutorSignupPage'));
+const TutorProfileCreatePage = lazy(() => import('@/pages/auth/TutorProfileCreatePage'));
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'));
 const OtpVerificationPage = lazy(() => import('@/pages/auth/OtpVerificationPage'));
@@ -118,6 +119,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  // Tutor onboarding — self-contained full-screen wizard (own layout)
+  { path: '/signup/tutor/profile', element: <S><TutorProfileCreatePage /></S> },
   { path: '/dashboard', element: <Navigate to="/dashboard/student" replace /> },
   { path: '*', element: <S><NotFoundPage /></S> },
 ]);

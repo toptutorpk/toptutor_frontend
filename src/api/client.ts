@@ -1,9 +1,18 @@
-import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
+import axios, {
+  AxiosError,
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import { env } from '@/config/env';
 
 /**
  * Central Axios instance. All real backend calls flow through here.
- * Token is read lazily from localStorage so the auth store stays decoupled.
+ *
+ * The backend wraps every response in a standard envelope
+ * (`{ success, message, data, error, correlationId, timestamp }`), so the typed `http`
+ * helpers below unwrap `.data` for callers. Access + refresh tokens are persisted in
+ * localStorage; a 401 transparently triggers a single refresh-and-retry.
  */
 export const apiClient: AxiosInstance = axios.create({
   baseURL: env.apiBaseUrl,
@@ -11,38 +20,163 @@ export const apiClient: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-const TOKEN_KEY = 'toptutor.token';
+/** The envelope every backend endpoint returns. */
+export interface ApiEnvelope<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  error?: {
+    code: string;
+    status: number;
+    path: string;
+    fieldErrors?: { field: string; message: string }[];
+  } | null;
+  correlationId?: string;
+  timestamp?: string;
+}
 
-export function getStoredToken(): string | null {
+/** Error thrown by the `http` helpers, carrying the backend's machine-readable code/message. */
+export class ApiError extends Error {
+  code: string;
+  status?: number;
+  fieldErrors?: { field: string; message: string }[];
+
+  constructor(
+    message: string,
+    code: string,
+    status?: number,
+    fieldErrors?: { field: string; message: string }[],
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+// ---- Token storage ----------------------------------------------------------
+const ACCESS_KEY = 'toptutor.token';
+const REFRESH_KEY = 'toptutor.refresh';
+
+export function getAccessToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(ACCESS_KEY);
   } catch {
     return null;
   }
 }
 
-export function setStoredToken(token: string | null) {
+export function getRefreshToken(): string | null {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    return localStorage.getItem(REFRESH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setTokens(accessToken: string | null, refreshToken?: string | null) {
+  try {
+    if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken);
+    else localStorage.removeItem(ACCESS_KEY);
+    if (refreshToken !== undefined) {
+      if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+      else localStorage.removeItem(REFRESH_KEY);
+    }
   } catch {
     /* ignore quota / privacy mode */
   }
 }
 
+export function clearTokens() {
+  setTokens(null, null);
+}
+
+/** Back-compat helper used by a few callers that only care about the access token. */
+export function setStoredToken(token: string | null) {
+  setTokens(token);
+}
+
+// ---- Interceptors -----------------------------------------------------------
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getStoredToken();
+  const token = getAccessToken();
   if (token) config.headers.set?.('Authorization', `Bearer ${token}`);
   return config;
 });
 
+// Endpoints that must never trigger a refresh-retry loop.
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/tutors/register', '/tutors/verify-otp'];
+
+let inflightRefresh: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  try {
+    const res = await axios.post<ApiEnvelope<{ accessToken: string; refreshToken: string }>>(
+      `${env.apiBaseUrl}/auth/refresh`,
+      { refreshToken },
+      { headers: { 'Content-Type': 'application/json' } },
+    );
+    const tokens = res.data.data;
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    return tokens.accessToken;
+  } catch {
+    clearTokens();
+    return null;
+  }
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error?.response?.status === 401) {
-      setStoredToken(null);
-      // A real app would redirect to /login here via a router event.
+  async (error: AxiosError<ApiEnvelope<unknown>>) => {
+    const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const status = error.response?.status;
+    const url = original?.url ?? '';
+    const isAuthPath = NO_REFRESH_PATHS.some((p) => url.includes(p));
+
+    // Transparent single refresh-and-retry on 401 for non-auth endpoints.
+    if (status === 401 && original && !original._retried && !isAuthPath && getRefreshToken()) {
+      original._retried = true;
+      inflightRefresh = inflightRefresh ?? refreshAccessToken();
+      const newToken = await inflightRefresh;
+      inflightRefresh = null;
+      if (newToken) {
+        original.headers.set?.('Authorization', `Bearer ${newToken}`);
+        return apiClient(original);
+      }
+      clearTokens();
+    }
+
+    // Normalise the backend error envelope into a typed ApiError.
+    const envelope = error.response?.data;
+    if (envelope && typeof envelope === 'object' && 'error' in envelope && envelope.error) {
+      return Promise.reject(
+        new ApiError(
+          envelope.message || 'Request failed',
+          envelope.error.code,
+          envelope.error.status,
+          envelope.error.fieldErrors,
+        ),
+      );
     }
     return Promise.reject(error);
   },
 );
+
+// ---- Typed helpers ----------------------------------------------------------
+// Unwrap the envelope so callers get the payload directly.
+export const http = {
+  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const res = await apiClient.get<ApiEnvelope<T>>(url, config);
+    return res.data.data;
+  },
+  async post<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const res = await apiClient.post<ApiEnvelope<T>>(url, body, config);
+    return res.data.data;
+  },
+  async put<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    const res = await apiClient.put<ApiEnvelope<T>>(url, body, config);
+    return res.data.data;
+  },
+};

@@ -11,7 +11,12 @@ import {
   Share2,
   MessageCircle,
   PlayCircle,
+  CalendarClock,
+  Video,
+  Home,
+  Building2,
 } from 'lucide-react';
+import type { SessionMode, Tutor } from '@/types';
 import { cn, getInitials } from '@/lib/utils';
 import { Container } from '@/components/common/Container';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -108,6 +113,9 @@ export default function TutorProfilePage() {
                   </div>
                 ))}
               </div>
+
+              {/* Availability */}
+              <AvailabilityStrip tutor={tutor} />
             </div>
 
             {/* Tabs */}
@@ -311,6 +319,87 @@ function CredentialRow({
           <CheckCircle2 className="h-3 w-3" /> Verified
         </Badge>
       )}
+    </div>
+  );
+}
+
+const MODE_META: Record<SessionMode, { icon: typeof Video; label: string }> = {
+  online: { icon: Video, label: 'Online' },
+  home_visit: { icon: Home, label: 'Home Visit' },
+  institute: { icon: Building2, label: 'Institute' },
+};
+
+/** Generic daily time windows shown as availability badges (not day-specific). */
+const TIME_WINDOWS = [
+  { time: '09:00', label: '9:00 AM – 11:00 AM' },
+  { time: '11:00', label: '11:00 AM – 1:00 PM' },
+  { time: '14:00', label: '2:00 PM – 4:00 PM' },
+  { time: '16:00', label: '4:00 PM – 6:00 PM' },
+  { time: '18:00', label: '6:00 PM – 8:00 PM' },
+  { time: '20:00', label: '8:00 PM – 10:00 PM' },
+];
+
+/** Generic, at-a-glance availability — blue badge = open, red = booked. */
+function AvailabilityStrip({ tutor }: { tutor: Tutor }) {
+  const windows = TIME_WINDOWS.map((w) => {
+    const slots = tutor.availability.flatMap((d) => d.slots.filter((s) => s.time === w.time));
+    const openCount = slots.filter((s) => s.available).length;
+    const available = slots.length > 0 && openCount >= slots.length / 2;
+    return { ...w, available };
+  });
+  const openTotal = windows.filter((w) => w.available).length;
+
+  return (
+    <div className="mt-6 border-t pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 font-display text-sm font-bold">
+          <CalendarClock className="h-4 w-4 text-brand-500" /> Available time slots
+          <span className="font-normal text-muted-foreground">
+            · {openTotal} of {windows.length} open
+          </span>
+        </h3>
+        <div className="flex flex-wrap gap-1.5">
+          {tutor.modes.map((m) => {
+            const M = MODE_META[m];
+            return (
+              <Badge key={m} variant="secondary" className="gap-1">
+                <M.icon className="h-3 w-3 text-brand-500" /> {M.label}
+              </Badge>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {windows.map((w) => (
+          <span
+            key={w.time}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium',
+              w.available
+                ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-300'
+                : 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400',
+            )}
+          >
+            <Clock className="h-3 w-3 shrink-0" />
+            {w.label}
+            {!w.available && (
+              <span className="ml-0.5 rounded bg-red-100 px-1 py-0 text-[9px] font-bold uppercase tracking-wide text-red-600 dark:bg-red-500/20 dark:text-red-300">
+                Booked
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-blue-400" /> Available
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-red-400" /> Booked
+        </span>
+      </div>
     </div>
   );
 }

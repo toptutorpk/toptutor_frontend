@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Loader2, Phone } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,8 +13,10 @@ import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/components/ui/sonner';
 
 const schema = z.object({
-  phone: z.string().min(7, 'Enter a valid phone number'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email('Enter a valid email address'),
+  // Login only checks the field is present — it must NOT reveal the password policy
+  // (min length, etc.). The server answers with a generic "invalid credentials".
+  password: z.string().min(1, 'Password is required'),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -23,13 +25,13 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from ?? '/dashboard/student';
+  const from = (location.state as { from?: string })?.from ?? '/dashboard/tutor';
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { phone: '', password: '' } });
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -57,12 +59,12 @@ export default function LoginPage() {
       <SocialButtons />
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="phone">Phone number</Label>
+          <Label htmlFor="email">Email</Label>
           <div className="relative">
-            <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="phone" placeholder="+92 300 1234567" className="pl-9" {...register('phone')} />
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input id="email" type="email" placeholder="you@email.com" className="pl-9" {...register('email')} />
           </div>
-          {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+          {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
         </div>
 
         <div className="space-y-1.5">

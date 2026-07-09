@@ -2,6 +2,7 @@ import { RotateCcw } from 'lucide-react';
 import { cn, formatPKR } from '@/lib/utils';
 import type { SearchFilters } from '@/types';
 import { CITIES, GRADE_LEVELS, POPULAR_SUBJECTS, PRICE_BOUNDS } from '@/constants';
+import { useCatalogs } from '@/hooks/useCatalogs';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -38,6 +39,12 @@ const GENDERS = [
 export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
   const min = filters.minPrice ?? PRICE_BOUNDS.min;
   const max = filters.maxPrice ?? PRICE_BOUNDS.max;
+  const catalogs = useCatalogs();
+  const subjects = catalogs.subjects.length ? catalogs.subjects.map((s) => s.value) : POPULAR_SUBJECTS;
+  const cities = catalogs.cities.length ? catalogs.cities.map((c) => c.value) : (CITIES as string[]);
+  const gradeLevels = catalogs['grade-levels'].length
+    ? catalogs['grade-levels'].map((g) => g.value)
+    : GRADE_LEVELS;
 
   return (
     <div className="space-y-6">
@@ -60,7 +67,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Any subject</SelectItem>
-            {POPULAR_SUBJECTS.map((s) => (
+            {subjects.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
               </SelectItem>
@@ -81,7 +88,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All cities</SelectItem>
-            {CITIES.map((c) => (
+            {cities.map((c) => (
               <SelectItem key={c} value={c}>
                 {c}
               </SelectItem>
@@ -208,7 +215,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
       <div className="space-y-2">
         <Label>Grade level</Label>
         <div className="grid gap-2">
-          {GRADE_LEVELS.slice(2, 7).map((g) => (
+          {gradeLevels.slice(2, 7).map((g) => (
             <label key={g} className="flex items-center gap-2.5 text-sm">
               <Checkbox /> {g}
             </label>

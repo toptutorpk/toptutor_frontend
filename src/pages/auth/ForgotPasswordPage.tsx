@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { authService } from '@/services/authService';
+import { ApiError } from '@/api/client';
+import { toast } from '@/components/ui/sonner';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -15,9 +17,20 @@ export default function ForgotPasswordPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await authService.forgotPassword(email);
-    setLoading(false);
-    setSent(true);
+    try {
+      await authService.forgotPassword(email);
+      setSent(true);
+    } catch (err) {
+      // Always surface a failure and stop the spinner (previously it hung forever).
+      toast.error('Couldn’t send reset link', {
+        description:
+          err instanceof ApiError || err instanceof Error
+            ? err.message
+            : 'Something went wrong. Please try again.',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (sent) {

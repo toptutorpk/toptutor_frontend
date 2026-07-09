@@ -3,11 +3,12 @@ import { cn } from '@/lib/utils';
 
 interface OtpInputProps {
   length?: number;
+  size?: 'default' | 'sm';
   onComplete?: (code: string) => void;
   onChange?: (code: string) => void;
 }
 
-export function OtpInput({ length = 6, onComplete, onChange }: OtpInputProps) {
+export function OtpInput({ length = 6, size = 'default', onComplete, onChange }: OtpInputProps) {
   const [values, setValues] = useState<string[]>(Array(length).fill(''));
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -43,8 +44,9 @@ export function OtpInput({ length = 6, onComplete, onChange }: OtpInputProps) {
     refs.current[Math.min(pasted.length, length - 1)]?.focus();
   };
 
+  const sm = size === 'sm';
   return (
-    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+    <div className={cn('flex justify-center', sm ? 'gap-1.5' : 'gap-2 sm:gap-3')} onPaste={handlePaste}>
       {values.map((v, i) => (
         <input
           key={i}
@@ -58,7 +60,8 @@ export function OtpInput({ length = 6, onComplete, onChange }: OtpInputProps) {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           className={cn(
-            'h-14 w-12 rounded-xl border-2 bg-background text-center font-display text-2xl font-bold shadow-sm transition-all focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20',
+            'rounded-lg border-2 bg-background text-center font-display font-bold shadow-sm transition-all focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20',
+            sm ? 'h-10 w-9 text-lg' : 'h-14 w-12 rounded-xl text-2xl',
             v ? 'border-brand-500' : 'border-input',
           )}
         />
