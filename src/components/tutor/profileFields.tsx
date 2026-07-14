@@ -34,11 +34,13 @@ export function Field({
   label,
   icon: Icon,
   hint,
+  error,
   children,
 }: {
   label: string;
   icon?: LucideIcon;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -48,7 +50,11 @@ export function Field({
         {label}
       </Label>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {error ? (
+        <p className="text-xs text-red-500">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }

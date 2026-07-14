@@ -1,58 +1,158 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, Search, Phone, Video, ShieldCheck } from 'lucide-react';
+import { Send, Search, ShieldCheck, Check, CheckCheck, Flag, Loader2, MessageSquare } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/api/queryKeys';
-import { contentService } from '@/services/contentService';
-import type { Message } from '@/types';
-import { MOCK_MESSAGES } from '@/services/mock/misc';
+import { messagingService, type ChatMessage } from '@/services/messagingService';
+import { unreadMessagesKey } from '@/hooks/useUnreadMessages';
+import { useMessagingSocket, type TypingEvent } from '@/hooks/useMessagingSocket';
+import { useAuthStore } from '@/store/authStore';
+import { toast } from '@/components/ui/sonner';
 
 export default function MessagesPage() {
+  const me = useAuthStore((s) => s.user);
+  const myId = me ? Number(me.id) : -1;
+  const qc = useQueryClient();
+
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [typingFrom, setTypingFrom] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data: conversations = [] } = useQuery({
     queryKey: queryKeys.conversations.all,
-    queryFn: contentService.conversations,
+    queryFn: messagingService.listConversations,
+    refetchInterval: 20000, // safety net if the socket drops
   });
-  const [activeId, setActiveId] = useState('c1');
-  const [draft, setDraft] = useState('');
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
 
-  const active = conversations.find((c) => c.id === activeId);
-  const thread = messages.filter((m) => m.conversationId === activeId);
+  // Default to the first conversation once loaded.
+  useEffect(() => {
+    if (activeId === null && conversations.length > 0) setActiveId(conversations[0].id);
+  }, [conversations, activeId]);
+
+  const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  const { data: thread = [] } = useQuery({
+    queryKey: queryKeys.messages(String(activeId)),
+    queryFn: () => messagingService.getThread(activeId as number),
+    enabled: activeId !== null,
+    refetchInterval: 15000,
+  });
+
+  const invalidate = (conversationId?: number) => {
+    qc.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    qc.invalidateQueries({ queryKey: queryKeys.messages(String(conversationId ?? activeId)) });
+    qc.invalidateQueries({ queryKey: unreadMessagesKey });
+  };
+
+  const markReadMutation = useMutation({
+    mutationFn: (conversationId: number) => messagingService.markRead(conversationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.all });
+      qc.invalidateQueries({ queryKey: unreadMessagesKey });
+    },
+  });
+
+  // ---- Live socket -------------------------------------------------------
+  const { sendTyping } = useMessagingSocket({
+    onMessage: (msg) => {
+      invalidate(msg.conversationId);
+      if (msg.conversationId === activeId) markReadMutation.mutate(msg.conversationId);
+    },
+    onReceipt: (evt) => invalidate(evt.conversationId),
+    onTyping: (evt: TypingEvent) => {
+      if (evt.conversationId !== activeId) return;
+      setTypingFrom(evt.typing ? evt.fromAccountId : null);
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: (body: string) => messagingService.sendMessage(activeId as number, body),
+    onSuccess: (msg) => {
+      setDraft('');
+      invalidate(msg.conversationId);
+      if (msg.redacted) {
+        toast.warning('Policy violation — contact details hidden', {
+          description:
+            'Sharing phone numbers, emails or links is against the rules. Repeated violations are flagged to our team and can get your account blocked.',
+        });
+      }
+    },
+    onError: () => toast.error('Could not send message. Please try again.'),
+  });
+
+  const reportMutation = useMutation({
+    mutationFn: () => messagingService.report(activeId as number, 'ABUSE'),
+    onSuccess: () => toast.success('Reported', { description: 'Our team will review this conversation.' }),
+  });
+
+  // Mark the open thread as read whenever it changes and has unread messages for me.
+  useEffect(() => {
+    if (activeId === null) return;
+    const hasUnreadForMe = thread.some((m) => m.senderAccountId !== myId && !m.readAt);
+    if (hasUnreadForMe) markReadMutation.mutate(activeId);
+    setTypingFrom(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, thread.length]);
+
+  // Keep the thread scrolled to the newest message — scroll only the list, never the page
+  // (scrollIntoView would scroll ancestor containers too, hiding the panel under the header).
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread.length, typingFrom]);
 
   const send = () => {
-    if (!draft.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `m${prev.length + 1}`,
-        conversationId: activeId,
-        senderId: 'me',
-        text: draft,
-        at: new Date().toISOString(),
-        mine: true,
-      },
-    ]);
-    setDraft('');
+    const body = draft.trim();
+    if (!body || activeId === null) return;
+    sendTyping(activeId, false);
+    sendMutation.mutate(body);
   };
+
+  const onDraftChange = (value: string) => {
+    setDraft(value);
+    if (activeId === null) return;
+    sendTyping(activeId, true);
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => sendTyping(activeId, false), 2500);
+  };
+
+  const filtered = useMemo(
+    () =>
+      conversations.filter((c) =>
+        c.participantName?.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [conversations, search],
+  );
+
+  if (conversations.length === 0) {
+    return <EmptyState />;
+  }
 
   return (
     <div className="grid h-[calc(100vh-9rem)] grid-cols-1 overflow-hidden rounded-2xl border bg-card shadow-soft md:grid-cols-[320px_1fr]">
       {/* Conversation list */}
-      <div className="hidden flex-col border-r md:flex">
+      <div className="hidden min-h-0 flex-col border-r md:flex">
         <div className="border-b p-4">
           <h2 className="font-display text-lg font-bold">Messages</h2>
           <div className="relative mt-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search conversations…" className="h-10 pl-9" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search conversations…"
+              className="h-10 pl-9"
+            />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {conversations.map((c) => (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {filtered.map((c) => (
             <button
               key={c.id}
               onClick={() => setActiveId(c.id)}
@@ -61,23 +161,22 @@ export default function MessagesPage() {
                 activeId === c.id && 'bg-secondary',
               )}
             >
-              <div className="relative">
-                <Avatar className="h-11 w-11">
-                  <AvatarImage src={c.participantAvatar} alt={c.participantName} />
-                  <AvatarFallback>{getInitials(c.participantName)}</AvatarFallback>
-                </Avatar>
-                {c.online && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-card" />
-                )}
-              </div>
+              <Avatar className="h-11 w-11">
+                <AvatarImage src={c.participantAvatar ?? undefined} alt={c.participantName} />
+                <AvatarFallback>{getInitials(c.participantName)}</AvatarFallback>
+              </Avatar>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <span className="truncate font-semibold">{c.participantName}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(c.lastMessageAt))}
-                  </span>
+                  {c.lastMessageAt && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(c.lastMessageAt))}
+                    </span>
+                  )}
                 </div>
-                <p className="truncate text-sm text-muted-foreground">{c.lastMessage}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {c.lastMessage ?? 'Say hello 👋'}
+                </p>
               </div>
               {c.unread > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-bold text-white">
@@ -90,58 +189,117 @@ export default function MessagesPage() {
       </div>
 
       {/* Thread */}
-      <div className="flex flex-col">
+      <div className="flex min-h-0 flex-col">
         <div className="flex items-center gap-3 border-b p-4">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={active?.participantAvatar} alt={active?.participantName} />
+            <AvatarImage src={active?.participantAvatar ?? undefined} alt={active?.participantName} />
             <AvatarFallback>{getInitials(active?.participantName ?? '')}</AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center gap-2 font-semibold">
               {active?.participantName}
-              <Badge variant="success" className="gap-1">
-                <ShieldCheck className="h-3 w-3" /> Verified
-              </Badge>
+              {active?.participantRole === 'TUTOR' && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                  <ShieldCheck className="h-3 w-3" /> Verified
+                </span>
+              )}
             </div>
-            <div className="text-xs text-muted-foreground">{active?.online ? 'Online now' : 'Offline'}</div>
+            <div className="text-xs text-muted-foreground">
+              {typingFrom ? <span className="text-brand-600">typing…</span> : 'Tap to view profile'}
+            </div>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Call"><Phone className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" aria-label="Video"><Video className="h-4 w-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Report conversation"
+            onClick={() => reportMutation.mutate()}
+          >
+            <Flag className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="flex-1 space-y-3 overflow-y-auto bg-secondary/20 p-4">
-          <div className="mx-auto w-fit rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">
-            🔒 Messages are end-to-end encrypted. Your number stays private until you book.
+        <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-secondary/20 p-4">
+          <div className="mx-auto w-fit rounded-full bg-secondary px-3 py-1 text-center text-xs text-muted-foreground">
+            🔒 Keep chatting here. Phone numbers, emails & links are hidden to protect you both.
           </div>
           {thread.map((m) => (
-            <div key={m.id} className={cn('flex', m.mine ? 'justify-end' : 'justify-start')}>
-              <div
-                className={cn(
-                  'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
-                  m.mine
-                    ? 'rounded-br-sm bg-brand-600 text-white'
-                    : 'rounded-bl-sm border bg-card',
-                )}
-              >
-                {m.text}
-              </div>
-            </div>
+            <MessageBubble key={m.id} message={m} mine={m.senderAccountId === myId} />
           ))}
         </div>
 
         <div className="flex items-center gap-2 border-t p-4">
           <Input
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => onDraftChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}
             placeholder="Type a message…"
             className="h-11"
           />
-          <Button variant="gradient" size="icon" onClick={send} aria-label="Send">
-            <Send className="h-4 w-4" />
+          <Button
+            variant="gradient"
+            size="icon"
+            onClick={send}
+            disabled={sendMutation.isPending || !draft.trim()}
+            aria-label="Send"
+          >
+            {sendMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A single chat bubble with WhatsApp-style delivery/read ticks on the sender's own messages. */
+function MessageBubble({ message, mine }: { message: ChatMessage; mine: boolean }) {
+  return (
+    <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+      <div
+        className={cn(
+          'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+          mine ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm border bg-card',
+        )}
+      >
+        <span>{message.body}</span>
+        <span
+          className={cn(
+            'ml-2 inline-flex items-center gap-0.5 align-bottom text-[10px]',
+            mine ? 'text-white/70' : 'text-muted-foreground',
+          )}
+        >
+          {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {mine && <Ticks message={message} />}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** ✓ sent · ✓✓ delivered · ✓✓ (blue) read. */
+function Ticks({ message }: { message: ChatMessage }) {
+  if (message.readAt) return <CheckCheck className="h-3 w-3 text-sky-300" />;
+  if (message.deliveredAt) return <CheckCheck className="h-3 w-3" />;
+  return <Check className="h-3 w-3" />;
+}
+
+function EmptyState() {
+  return (
+    <div className="flex h-[calc(100vh-9rem)] flex-col items-center justify-center rounded-2xl border bg-card p-8 text-center shadow-soft">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+        <MessageSquare className="h-8 w-8" />
+      </div>
+      <h2 className="font-display text-xl font-bold">No conversations yet</h2>
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        Book a free 15-minute intro call with a tutor to start a conversation. All chat stays in-app
+        to keep everyone safe.
+      </p>
+      <Button className="mt-5" variant="gradient" onClick={() => (window.location.href = '/tutors')}>
+        Find a tutor
+      </Button>
     </div>
   );
 }

@@ -13,7 +13,8 @@ import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/components/ui/sonner';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
+  // Accepts an email OR a phone number (students/parents may log in with phone).
+  email: z.string().min(3, 'Enter your email or phone'),
   // Login only checks the field is present — it must NOT reveal the password policy
   // (min length, etc.). The server answers with a generic "invalid credentials".
   password: z.string().min(1, 'Password is required'),
@@ -35,9 +36,18 @@ export default function LoginPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      await login(values);
+      const user = await login(values);
       toast.success('Welcome back!');
-      navigate(from, { replace: true });
+      // Route to the right dashboard by role.
+      const dest =
+        user.role === 'admin'
+          ? '/admin'
+          : user.role === 'tutor'
+            ? '/dashboard/tutor/profile'
+            : user.role === 'student' || user.role === 'parent'
+              ? '/dashboard/student'
+              : from;
+      navigate(dest, { replace: true });
     } catch {
       toast.error('Login failed', { description: 'Please check your credentials and try again.' });
     }
@@ -59,10 +69,10 @@ export default function LoginPage() {
       <SocialButtons />
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email or phone</Label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="email" type="email" placeholder="you@email.com" className="pl-9" {...register('email')} />
+            <Input id="email" type="text" placeholder="you@email.com or +92…" className="pl-9" {...register('email')} />
           </div>
           {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
         </div>

@@ -20,6 +20,19 @@ export function RatingStars({
   interactive = false,
   onChange,
 }: RatingStarsProps) {
+  // Honest empty state: a tutor with no reviews yet shows "New" rather than a fake 0.0.
+  if (!interactive && typeof count === 'number' && count === 0) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400',
+          className,
+        )}
+      >
+        New
+      </span>
+    );
+  }
   return (
     <div className={cn('inline-flex items-center gap-1.5', className)}>
       <div className="flex" role={interactive ? 'radiogroup' : 'img'} aria-label={`Rating ${value} of 5`}>

@@ -3,7 +3,9 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
+import { AdminLayout } from '@/layouts/AdminLayout';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
+import { AdminRoute } from '@/routes/AdminRoute';
 import { PageLoader } from '@/components/common/PageLoader';
 
 // ---- Lazy pages (code splitting) -------------------------------------------
@@ -44,6 +46,19 @@ const TutorEarnings = lazy(() => import('@/pages/dashboard/tutor/Earnings'));
 const TutorSchedule = lazy(() => import('@/pages/dashboard/tutor/Schedule'));
 const TutorVerification = lazy(() => import('@/pages/dashboard/tutor/Verification'));
 const TutorPlaceholder = lazy(() => import('@/pages/dashboard/tutor/TutorPlaceholder'));
+
+// Admin portal
+const AdminOverview = lazy(() => import('@/pages/admin/Overview'));
+const AdminApprovals = lazy(() => import('@/pages/admin/Approvals'));
+const AdminAlerts = lazy(() => import('@/pages/admin/Alerts'));
+const AdminTutorReview = lazy(() => import('@/pages/admin/TutorReview'));
+const AdminTutors = lazy(() => import('@/pages/admin/Tutors'));
+const AdminStudents = lazy(() => import('@/pages/admin/Students'));
+const AdminInstitutes = lazy(() => import('@/pages/admin/Institutes'));
+const AdminBookings = lazy(() => import('@/pages/admin/Bookings'));
+const AdminPayments = lazy(() => import('@/pages/admin/Payments'));
+const AdminAnalytics = lazy(() => import('@/pages/admin/Analytics'));
+const AdminSettings = lazy(() => import('@/pages/admin/Settings'));
 
 function S({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -119,6 +134,30 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  // Admin portal — gated to authenticated ADMIN accounts.
+  {
+    element: <AdminRoute />,
+    children: [
+      {
+        path: '/admin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <S><AdminOverview /></S> },
+          { path: 'approvals', element: <S><AdminApprovals /></S> },
+          { path: 'alerts', element: <S><AdminAlerts /></S> },
+          { path: 'tutors/:id', element: <S><AdminTutorReview /></S> },
+          { path: 'tutors', element: <S><AdminTutors /></S> },
+          { path: 'students', element: <S><AdminStudents /></S> },
+          { path: 'institutes', element: <S><AdminInstitutes /></S> },
+          { path: 'bookings', element: <S><AdminBookings /></S> },
+          { path: 'payments', element: <S><AdminPayments /></S> },
+          { path: 'analytics', element: <S><AdminAnalytics /></S> },
+          { path: 'settings', element: <S><AdminSettings /></S> },
+        ],
+      },
+    ],
+  },
+
   // Tutor onboarding — self-contained full-screen wizard (own layout)
   { path: '/signup/tutor/profile', element: <S><TutorProfileCreatePage /></S> },
   { path: '/dashboard', element: <Navigate to="/dashboard/student" replace /> },

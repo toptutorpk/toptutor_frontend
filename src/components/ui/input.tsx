@@ -13,6 +13,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         'file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background focus-visible:border-primary',
         'disabled:cursor-not-allowed disabled:opacity-50',
+        // Invalid state: red border + ring so the offending field stands out on submit.
+        'aria-[invalid=true]:border-red-500 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-red-500 aria-[invalid=true]:focus-visible:ring-red-500',
         className,
       )}
       {...props}

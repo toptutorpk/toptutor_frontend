@@ -1,94 +1,211 @@
-import { apiClient } from '@/api/client';
-import { env } from '@/config/env';
-import { sleep } from '@/lib/utils';
-import { TUTORS, findTutorBySlug } from '@/services/mock/tutors';
-import type { Paginated, SearchFilters, Tutor } from '@/types';
+import { http } from '@/api/client';
+import type {
+  Certification,
+  City,
+  Education,
+  Paginated,
+  SearchFilters,
+  SessionMode,
+  SessionPackage,
+  TeachingLanguage,
+  Tutor,
+  VerificationStatus,
+  VerificationStep,
+} from '@/types';
 
-const PAGE_SIZE = 9;
+/* ============================================================================
+   Tutor service — now backed by the REAL backend (public browse API).
 
-function applyFilters(tutors: Tutor[], f: SearchFilters): Tutor[] {
-  let result = [...tutors];
-  if (f.query) {
-    const q = f.query.toLowerCase();
-    result = result.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.headline.toLowerCase().includes(q) ||
-        t.subjects.some((s) => s.toLowerCase().includes(q)),
-    );
-  }
-  if (f.subject && f.subject !== 'all')
-    result = result.filter((t) =>
-      t.subjects.some((s) => s.toLowerCase().includes(f.subject!.toLowerCase())),
-    );
-  if (f.city && f.city !== 'all') result = result.filter((t) => t.city === f.city);
-  if (f.mode && f.mode !== 'all') {
-    const mode = f.mode;
-    result = result.filter((t) => t.modes.includes(mode));
-  }
-  if (f.language && f.language !== 'all')
-    result = result.filter((t) => t.languages === f.language || t.languages === 'Both');
-  if (f.gender && f.gender !== 'any') result = result.filter((t) => t.gender === f.gender);
-  if (typeof f.minPrice === 'number') result = result.filter((t) => t.hourlyRate >= f.minPrice!);
-  if (typeof f.maxPrice === 'number') result = result.filter((t) => t.hourlyRate <= f.maxPrice!);
-  if (typeof f.minRating === 'number') result = result.filter((t) => t.rating >= f.minRating!);
-  if (f.verifiedOnly) result = result.filter((t) => t.verificationStatus === 'verified');
+   The listing/detail come from `/public/tutors…`, assembled from real profile
+   data. Social-proof fields (rating, reviews, sessions, availability) have no
+   data source yet, so they're returned empty and rendered as honest "New" /
+   "No reviews yet" states rather than fabricated numbers.
+   ========================================================================== */
 
-  switch (f.sort) {
-    case 'rating':
-      result.sort((a, b) => b.rating - a.rating);
-      break;
-    case 'price_low':
-      result.sort((a, b) => a.hourlyRate - b.hourlyRate);
-      break;
-    case 'price_high':
-      result.sort((a, b) => b.hourlyRate - a.hourlyRate);
-      break;
-    case 'experience':
-      result.sort((a, b) => b.experienceYears - a.experienceYears);
-      break;
-    default:
-      result.sort((a, b) => Number(b.isPremium) - Number(a.isPremium) || b.rating - a.rating);
-  }
-  return result;
+// ---- Backend DTOs (mirror the Spring public API) ---------------------------
+interface BackendCredential {
+  title: string;
+  org: string;
+  year: string;
+}
+interface BackendVerificationStep {
+  key: string;
+  label: string;
+  status: 'passed' | 'pending' | 'failed' | 'optional';
+}
+interface BackendCard {
+  id: number;
+  slug: string;
+  name: string;
+  headline?: string;
+  photoUrl?: string;
+  coverUrl?: string;
+  verificationStatus: string;
+  city?: string;
+  area?: string;
+  gender?: string;
+  teachingLanguage?: string;
+  experienceYears?: number;
+  hourlyRate?: number;
+  monthlyRate?: number;
+  subjects?: string[];
+  gradeLevels?: string[];
+  modes?: string[];
+  rating?: number | null;
+  reviewCount?: number;
+}
+interface BackendDetail extends BackendCard {
+  bio?: string;
+  videoIntroUrl?: string;
+  skills?: string[];
+  education?: BackendCredential[];
+  certifications?: BackendCredential[];
+  verificationSteps?: BackendVerificationStep[];
+  totalSessions?: number;
+  responseRate?: number | null;
+  repeatHireRate?: number | null;
+}
+interface BackendPage {
+  items: BackendCard[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// ---- Mapping to the frontend Tutor shape -----------------------------------
+function mapVerification(status: string): VerificationStatus {
+  // The frontend badge only models these four; a not-yet-started tutor maps to "under_review".
+  return status === 'verified' || status === 'partial' || status === 'rejected'
+    ? status
+    : 'under_review';
+}
+
+/**
+ * Pricing packages are a pure function of the tutor's real hourly rate (nothing fabricated).
+ * Always returns the three tiers — the booking panel indexes packages[0], so it must be non-empty.
+ */
+function buildPackages(rate: number): SessionPackage[] {
+  return [
+    { id: 'pkg-single', title: 'Single Session', sessions: 1, pricePerSession: rate, totalPrice: rate, perks: ['1 hour live session', 'Homework help', 'Session notes'] },
+    { id: 'pkg-weekly', title: 'Weekly Pack', sessions: 8, pricePerSession: Math.round(rate * 0.9), totalPrice: Math.round(rate * 0.9) * 8, popular: true, perks: ['8 sessions / month', '10% savings', 'Progress report', 'Priority scheduling'] },
+    { id: 'pkg-intensive', title: 'Exam Intensive', sessions: 16, pricePerSession: Math.round(rate * 0.82), totalPrice: Math.round(rate * 0.82) * 16, perks: ['16 sessions', '18% savings', 'Mock tests'] },
+  ];
+}
+
+function cardToTutor(c: BackendCard): Tutor {
+  const rate = Number(c.hourlyRate ?? 0);
+  return {
+    id: String(c.id),
+    slug: c.slug,
+    name: c.name,
+    headline: c.headline ?? '',
+    avatarUrl: c.photoUrl ?? '',
+    coverUrl: c.coverUrl ?? undefined,
+    verificationStatus: mapVerification(c.verificationStatus),
+    verificationSteps: [],
+    rating: c.rating ?? 0,
+    reviewCount: c.reviewCount ?? 0,
+    subjects: c.subjects ?? [],
+    gradeLevels: c.gradeLevels ?? [],
+    languages: (c.teachingLanguage as TeachingLanguage) ?? 'Both',
+    modes: (c.modes ?? []) as SessionMode[],
+    city: (c.city as City) ?? ('Karachi' as City),
+    area: c.area ?? '',
+    gender: c.gender === 'female' ? 'female' : 'male',
+    hourlyRate: rate,
+    monthlyRate: c.monthlyRate != null ? Number(c.monthlyRate) : undefined,
+    currency: 'PKR',
+    bio: '',
+    experienceYears: c.experienceYears ?? 0,
+    // No activity data yet — kept at zero (rendered as honest empty states).
+    responseRate: 0,
+    repeatHireRate: 0,
+    totalSessions: 0,
+    education: [],
+    certifications: [],
+    skills: [],
+    packages: buildPackages(rate),
+    availability: [],
+    reviews: [],
+    isPremium: false,
+    isFavorite: false,
+    isOnline: false,
+  };
+}
+
+function detailToTutor(d: BackendDetail): Tutor {
+  const verified = d.verificationStatus === 'verified';
+  const education: Education[] = (d.education ?? []).map((e) => ({
+    degree: e.title,
+    institution: e.org,
+    year: e.year,
+    verified,
+  }));
+  const certifications: Certification[] = (d.certifications ?? []).map((c) => ({
+    name: c.title,
+    issuer: c.org,
+    year: c.year,
+    verified,
+  }));
+  const steps: VerificationStep[] = (d.verificationSteps ?? []).map((s, i) => ({
+    id: i + 1,
+    label: s.label,
+    description: '',
+    status: s.status,
+  }));
+  return {
+    ...cardToTutor(d),
+    bio: d.bio ?? '',
+    videoIntroUrl: d.videoIntroUrl ?? undefined,
+    skills: d.skills ?? [],
+    education,
+    certifications,
+    verificationSteps: steps,
+    responseRate: d.responseRate ?? 0,
+    repeatHireRate: d.repeatHireRate ?? 0,
+    totalSessions: d.totalSessions ?? 0,
+    reviews: [],
+  };
+}
+
+/** Strips 'all'/'any'/empty sentinel values so they aren't sent as literal filters. */
+function toParams(f: SearchFilters): Record<string, unknown> {
+  const params: Record<string, unknown> = { page: f.page ?? 1, size: 9 };
+  const put = (key: string, value: unknown) => {
+    if (value !== undefined && value !== '' && value !== 'all' && value !== 'any') params[key] = value;
+  };
+  put('query', f.query);
+  put('subject', f.subject);
+  put('city', f.city);
+  put('mode', f.mode);
+  put('language', f.language);
+  put('gender', f.gender);
+  put('minPrice', f.minPrice);
+  put('maxPrice', f.maxPrice);
+  put('sort', f.sort);
+  return params;
 }
 
 export const tutorService = {
   async list(filters: SearchFilters = {}): Promise<Paginated<Tutor>> {
-    if (env.useMocks) {
-      await sleep(450);
-      const filtered = applyFilters(TUTORS, filters);
-      const page = filters.page ?? 1;
-      const start = (page - 1) * PAGE_SIZE;
-      return {
-        items: filtered.slice(start, start + PAGE_SIZE),
-        total: filtered.length,
-        page,
-        pageSize: PAGE_SIZE,
-        totalPages: Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)),
-      };
-    }
-    const { data } = await apiClient.get<Paginated<Tutor>>('/tutors', { params: filters });
-    return data;
+    const page = await http.get<BackendPage>('/public/tutors', { params: toParams(filters) });
+    return {
+      items: page.items.map(cardToTutor),
+      total: page.total,
+      page: page.page,
+      pageSize: page.pageSize,
+      totalPages: page.totalPages,
+    };
   },
 
   async featured(): Promise<Tutor[]> {
-    if (env.useMocks) {
-      await sleep(300);
-      return TUTORS.filter((t) => t.isPremium).slice(0, 6);
-    }
-    const { data } = await apiClient.get<Tutor[]>('/tutors/featured');
-    return data;
+    const cards = await http.get<BackendCard[]>('/public/tutors/featured', { params: { limit: 6 } });
+    return cards.map(cardToTutor);
   },
 
   async getBySlug(slug: string): Promise<Tutor> {
-    if (env.useMocks) {
-      await sleep(350);
-      const tutor = findTutorBySlug(slug);
-      if (!tutor) throw new Error('Tutor not found');
-      return tutor;
-    }
-    const { data } = await apiClient.get<Tutor>(`/tutors/${slug}`);
-    return data;
+    const detail = await http.get<BackendDetail>(`/public/tutors/${slug}`);
+    return detailToTutor(detail);
   },
 };

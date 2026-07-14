@@ -90,6 +90,7 @@ interface TutorResponse {
   email: string;
   phone: string;
   status: TutorAccountStatus;
+  role?: 'TUTOR' | 'ADMIN';
   phoneVerified: boolean;
   emailVerified: boolean;
   profile?: TutorProfilePayload;
@@ -115,6 +116,8 @@ export interface AuthResult {
 }
 
 export interface TutorRegisterPayload {
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   password: string;
@@ -144,17 +147,69 @@ export interface CreateTutorProfilePayload {
 
 /** Maps a backend TutorResponse to the frontend User shape. */
 function tutorToUser(t: TutorResponse): User {
-  const name = t.profile ? `${t.profile.firstName} ${t.profile.lastName}`.trim() : t.email;
+  // A freshly-verified tutor has an empty profile (no name yet) — fall back to the email.
+  const fullName = [t.profile?.firstName, t.profile?.lastName].filter(Boolean).join(' ').trim();
+  const name = fullName || t.email;
   return {
     id: String(t.id),
     name,
     email: t.email,
     phone: t.phone,
-    role: 'tutor',
+    role: t.role === 'ADMIN' ? 'admin' : 'tutor',
     city: (t.profile?.city as City | undefined) ?? undefined,
     createdAt: t.createdAt,
   };
 }
+
+/** Role-aware identity from GET /accounts/me. */
+interface AccountMe {
+  id: number;
+  email?: string;
+  phone: string;
+  role: 'TUTOR' | 'STUDENT' | 'PARENT' | 'ADMIN';
+  status: string;
+  name?: string;
+  city?: string;
+}
+
+const ROLE_MAP: Record<AccountMe['role'], UserRole> = {
+  TUTOR: 'tutor',
+  STUDENT: 'student',
+  PARENT: 'parent',
+  ADMIN: 'admin',
+};
+
+function accountMeToUser(m: AccountMe): User {
+  return {
+    id: String(m.id),
+    name: m.name ?? m.email ?? m.phone,
+    email: m.email,
+    phone: m.phone,
+    role: ROLE_MAP[m.role],
+    city: (m.city as City | undefined) ?? undefined,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export interface RegisterAccountPayload {
+  role: 'STUDENT' | 'PARENT';
+  fullName: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  password: string;
+  acceptedTerms: boolean;
+}
+
+export interface Child {
+  id: number;
+  name: string;
+  gradeLevel?: string;
+  school?: string;
+  gender?: string;
+  notes?: string;
+}
+export type ChildPayload = Omit<Child, 'id'>;
 
 function mockUser(partial: {
   role: UserRole;
@@ -189,10 +244,9 @@ export const authService = {
     phoneCode: string;
     emailCode: string;
   }): Promise<VerifyOtpResult> {
-    const result = await http.post<VerifyOtpResult>('/tutors/verify-otp', input);
-    // Authorises the (secured) profile-creation call that follows.
-    setStoredToken(result.onboardingToken);
-    return result;
+    // Verification now creates an empty profile and activates the account; the client then routes
+    // the tutor to the login page (no immediate secured call), so we don't store the token here.
+    return http.post<VerifyOtpResult>('/tutors/verify-otp', input);
   },
 
   /** Re-send a single channel's OTP (PHONE or EMAIL). */
@@ -215,10 +269,28 @@ export const authService = {
     return tutorToUser(tutor);
   },
 
-  /** The authenticated tutor's own account + profile. */
+  /** Role-aware identity of the signed-in account (works for tutor/student/parent/admin). */
   async getMe(): Promise<User> {
-    const tutor = await http.get<TutorResponse>('/tutors/me');
-    return tutorToUser(tutor);
+    const me = await http.get<AccountMe>('/accounts/me');
+    return accountMeToUser(me);
+  },
+
+  /** Registers a STUDENT or PARENT (email optional), stores the tokens, and returns the user. */
+  async registerAccount(payload: RegisterAccountPayload): Promise<User> {
+    const tokens = await http.post<TokenResponse>('/accounts/register', payload);
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    return this.getMe();
+  },
+
+  /** Parent → children management. */
+  async listChildren(): Promise<Child[]> {
+    return http.get<Child[]>('/parents/children');
+  },
+  async addChild(child: ChildPayload): Promise<Child> {
+    return http.post<Child>('/parents/children', child);
+  },
+  async removeChild(id: number): Promise<void> {
+    await http.del<void>(`/parents/children/${id}`);
   },
 
   /** The authenticated tutor's full profile fields (for pre-filling the edit form). */

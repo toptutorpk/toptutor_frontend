@@ -14,6 +14,7 @@ import {
   EyeOff,
   MessageSquare,
   MailCheck,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -51,8 +52,10 @@ export default function TutorSignupPage() {
   const [emailCode, setEmailCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
 
   const setOnboarding = useAuthStore((s) => s.setOnboarding);
+  const clearOnboarding = useAuthStore((s) => s.clearOnboarding);
   const navigate = useNavigate();
 
   const passwordsMatch = form.password.length > 0 && form.password === form.confirmPassword;
@@ -80,7 +83,13 @@ export default function TutorSignupPage() {
     try {
       const email = form.email.trim().toLowerCase();
       const phone = normalizePhone(form.phone);
-      const challenge = await authService.registerTutor({ email, phone, password: form.password });
+      const challenge = await authService.registerTutor({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email,
+        phone,
+        password: form.password,
+      });
       setTutorId(challenge.tutorId);
       setOnboarding({
         tutorId: challenge.tutorId,
@@ -112,7 +121,8 @@ export default function TutorSignupPage() {
     }
   };
 
-  // Step 2 → verify both codes, then head to profile creation.
+  // Step 2 → verify both codes. The account is activated (with an empty profile); we congratulate
+  // the tutor and send them to the login page, where they'll build their profile from the dashboard.
   const verifyAndContinue = async () => {
     if (tutorId == null || smsCode.length !== 6 || emailCode.length !== 6) {
       toast.error('Invalid codes', { description: 'Enter both 6-digit codes to continue.' });
@@ -121,14 +131,38 @@ export default function TutorSignupPage() {
     setVerifying(true);
     try {
       await authService.verifyTutorOtp({ tutorId, phoneCode: smsCode, emailCode });
-      toast.success('Phone & email verified!', { description: 'Let’s set up your tutor profile.' });
-      navigate('/signup/tutor/profile');
+      clearOnboarding();
+      setDone(true);
+      setTimeout(() => navigate('/login', { replace: true }), 3500);
     } catch (e) {
       toast.error('Verification failed', { description: errorMessage(e) });
-    } finally {
       setVerifying(false);
     }
   };
+
+  if (done) {
+    return (
+      <div>
+        <AuthHeader title="You’re all set" subtitle="Your tutor account has been created." />
+        <div className="flex flex-col items-center gap-4 py-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15">
+            <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h2 className="font-display text-2xl font-extrabold tracking-tight">Congratulations! 🎉</h2>
+          <p className="max-w-sm text-muted-foreground">
+            Your phone and email are verified. Please log in — you’ll set up your tutor profile from
+            your dashboard.
+          </p>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Redirecting you to log in…
+          </div>
+          <Link to="/login" className="text-sm font-semibold text-primary hover:underline">
+            Go to login now
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

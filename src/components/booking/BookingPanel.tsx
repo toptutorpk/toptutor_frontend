@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { CalendarDays, Phone, ShieldCheck, Zap, Check } from 'lucide-react';
+import { CalendarDays, Phone, ShieldCheck, Zap, Check, Loader2 } from 'lucide-react';
 import { cn, formatPKR } from '@/lib/utils';
 import type { Tutor } from '@/types';
+import { useBookIntro } from '@/hooks/useBookIntro';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -18,6 +19,7 @@ import { toast } from '@/components/ui/sonner';
 export function BookingPanel({ tutor }: { tutor: Tutor }) {
   const [selectedPkg, setSelectedPkg] = useState(tutor.packages[1]?.id ?? tutor.packages[0].id);
   const pkg = tutor.packages.find((p) => p.id === selectedPkg) ?? tutor.packages[0];
+  const { book, loading: booking } = useBookIntro();
 
   return (
     <div className="rounded-2xl border bg-card p-5 shadow-soft">
@@ -69,8 +71,15 @@ export function BookingPanel({ tutor }: { tutor: Tutor }) {
 
       <div className="mt-5 space-y-2">
         <BookingDialog tutor={tutor} total={pkg.totalPrice} title={pkg.title} />
-        <Button variant="outline" size="lg" className="w-full">
-          <Phone className="h-4 w-4" /> Free 15-min intro call
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={booking}
+          onClick={() => book(Number(tutor.id), { tutorName: tutor.name, slug: tutor.slug })}
+        >
+          {booking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+          Free 15-min intro call
         </Button>
       </div>
 

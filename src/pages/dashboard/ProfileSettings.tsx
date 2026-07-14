@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Camera,
   Bell,
@@ -39,17 +39,19 @@ import {
   ModeToggles,
   SectionTitle,
 } from '@/components/tutor/profileFields';
+import { MediaUploadField } from '@/components/tutor/MediaUploadField';
+import { uploadService } from '@/services/uploadService';
 import {
   EMPTY_ROW,
   GENDER_OPTIONS,
   type CredentialRow,
 } from '@/components/tutor/profileFieldOptions';
-import { PRICE_BOUNDS } from '@/constants';
+import { GRADE_LEVELS, PRICE_BOUNDS } from '@/constants';
 import { useProfileCatalogs } from '@/hooks/useCatalogs';
 import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/authService';
+import { authService, type Child } from '@/services/authService';
 import { ApiError, getAccessToken } from '@/api/client';
-import { getInitials } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import type { City, SessionMode, TeachingLanguage } from '@/types';
 
@@ -68,7 +70,14 @@ export default function ProfileSettings() {
         </TabsList>
 
         <TabsContent value="profile">
-          {isTutor ? <TutorProfileForm /> : <BasicProfileForm />}
+          {isTutor ? (
+            <TutorProfileForm />
+          ) : (
+            <div className="space-y-6">
+              <BasicProfileForm />
+              {user?.role === 'parent' && <ParentChildren />}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="notifications">
@@ -152,22 +161,56 @@ export default function ProfileSettings() {
 /* -------------------------------------------------------------------------- */
 /*  Profile header (shared)                                                   */
 /* -------------------------------------------------------------------------- */
-function ProfileHeader() {
+function ProfileHeader({
+  previewUrl,
+  onPickFile,
+  uploading,
+}: {
+  previewUrl?: string;
+  onPickFile?: (file: File) => void;
+  uploading?: boolean;
+}) {
   const user = useAuthStore((s) => s.user);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const src = previewUrl || user?.avatarUrl;
   return (
     <div className="flex items-center gap-4">
       <div className="relative">
         <Avatar className="h-20 w-20">
-          <AvatarImage src={user?.avatarUrl} alt={user?.name} />
+          <AvatarImage src={src} alt={user?.name} />
           <AvatarFallback className="text-xl">{getInitials(user?.name ?? 'TT')}</AvatarFallback>
         </Avatar>
-        <button className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-md">
-          <Camera className="h-4 w-4" />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={!onPickFile || uploading}
+          className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-md disabled:opacity-60"
+          aria-label="Upload profile photo"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
         </button>
+        {onPickFile && (
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onPickFile(file);
+              e.target.value = ''; // allow re-picking the same file
+            }}
+          />
+        )}
       </div>
       <div>
         <h3 className="font-display text-lg font-bold">{user?.name ?? 'Your Name'}</h3>
         <p className="text-sm capitalize text-muted-foreground">{user?.role ?? 'student'} account</p>
+        {onPickFile && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {uploading ? 'Uploading photo…' : 'Click the camera to upload a profile photo.'}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -244,6 +287,33 @@ function TutorProfileForm() {
   const catalog = useProfileCatalogs();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoSessionUrl, setPhotoSessionUrl] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Picks a profile photo, shows an instant preview, and uploads it to object storage (R2).
+  const pickPhoto = async (file: File) => {
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setPhotoUploading(true);
+    try {
+      const result = await uploadService.upload(file, 'profile-image', {
+        replaces: photoSessionUrl ?? undefined,
+      });
+      setPhotoSessionUrl(result.url);
+      set('avatarUrl', result.url);
+      toast.success('Photo uploaded');
+    } catch (e) {
+      toast.error('Photo upload failed', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
   const [form, setForm] = useState<TutorProfileState>({
     name: user?.name ?? '',
     phone: user?.phone ?? '',
@@ -277,7 +347,7 @@ function TutorProfileForm() {
         if (cancelled || !p) return;
         setForm((f) => ({
           ...f,
-          name: [p.firstName, p.lastName].filter(Boolean).join(' ') || f.name,
+          name: [p.firstName, p.lastName].filter(Boolean).join(' '),
           headline: p.headline ?? '',
           bio: p.bio ?? '',
           city: (p.city as City) ?? '',
@@ -320,12 +390,24 @@ function TutorProfileForm() {
     });
 
   const save = async () => {
-    if (form.headline.trim().length < 4 || form.bio.trim().length < 20) {
-      toast.error('Add a headline and a short bio', {
-        description: 'These appear on your public profile and search results.',
-      });
+    // Validate; collect per-field messages so the offending cells can be highlighted.
+    const next: Record<string, string> = {};
+    if (form.name.trim().length < 2) next.name = 'Enter your full name.';
+    if (form.headline.trim().length < 4) next.headline = 'Add a headline of at least 4 characters.';
+    if (form.bio.trim().length < 20)
+      next.bio = 'Tell students a bit more — at least 20 characters.';
+    if (!form.city) next.city = 'Select your city.';
+    if (form.hourlyRate) {
+      const rate = Number(form.hourlyRate);
+      if (!Number.isFinite(rate) || rate < PRICE_BOUNDS.min || rate > PRICE_BOUNDS.max)
+        next.hourlyRate = `Enter a rate between PKR ${PRICE_BOUNDS.min} and PKR ${PRICE_BOUNDS.max}.`;
+    }
+    setErrors(next);
+    if (Object.keys(next).length > 0) {
+      toast.error('Please fix the highlighted fields');
       return;
     }
+
     // Split the single "Full name" field back into first/last (last falls back to first).
     const parts = form.name.trim().split(/\s+/);
     const firstName = parts[0] || 'Tutor';
@@ -388,11 +470,19 @@ function TutorProfileForm() {
     <div className="space-y-6">
       {/* Account & basics */}
       <div className="rounded-2xl border bg-card p-6 shadow-soft">
-        <ProfileHeader />
+        <ProfileHeader
+          previewUrl={photoPreview ?? form.avatarUrl ?? undefined}
+          onPickFile={pickPhoto}
+          uploading={photoUploading}
+        />
         <Separator className="my-6" />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name" icon={User}>
-            <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
+          <Field label="Full name" icon={User} error={errors.name}>
+            <Input
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              aria-invalid={!!errors.name}
+            />
           </Field>
           <Field label="Phone">
             <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
@@ -414,9 +504,9 @@ function TutorProfileForm() {
               placeholder="5"
             />
           </Field>
-          <Field label="City" icon={MapPin}>
+          <Field label="City" icon={MapPin} error={errors.city}>
             <Select value={form.city} onValueChange={(v) => set('city', v as City)}>
-              <SelectTrigger>
+              <SelectTrigger aria-invalid={!!errors.city} className={cn(errors.city && 'border-red-500 ring-1 ring-red-500')}>
                 <SelectValue placeholder="Select city" />
               </SelectTrigger>
               <SelectContent>
@@ -466,45 +556,48 @@ function TutorProfileForm() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Photo URL" icon={Camera} hint="Link to your profile photo.">
-            <Input
-              value={form.avatarUrl}
-              onChange={(e) => set('avatarUrl', e.target.value)}
-              placeholder="https://…"
-            />
-          </Field>
-          <Field label="Video intro URL" icon={Video} hint="A 2-minute intro boosts bookings.">
-            <Input
-              value={form.videoIntroUrl}
-              onChange={(e) => set('videoIntroUrl', e.target.value)}
-              placeholder="https://youtu.be/…"
-            />
-          </Field>
           <div className="sm:col-span-2">
-            <Field label="Cover image URL" hint="Banner shown at the top of your public profile.">
-              <Input
-                value={form.coverUrl}
-                onChange={(e) => set('coverUrl', e.target.value)}
-                placeholder="https://…"
+            <Field label="Intro video" icon={Video} hint="A 2-minute intro boosts bookings. MP4, WEBM or MOV.">
+              <MediaUploadField
+                kind="video"
+                category="video-intro"
+                value={form.videoIntroUrl || undefined}
+                onChange={(url) => set('videoIntroUrl', url ?? '')}
               />
             </Field>
           </div>
           <div className="sm:col-span-2">
-            <Field label="Professional headline" hint="A short tagline shown under your name.">
+            <Field label="Cover image" hint="A banner shown at the top of your public profile.">
+              <MediaUploadField
+                kind="image"
+                category="cover-image"
+                value={form.coverUrl || undefined}
+                onChange={(url) => set('coverUrl', url ?? '')}
+              />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field
+              label="Professional headline"
+              hint="A short tagline shown under your name."
+              error={errors.headline}
+            >
               <Input
                 value={form.headline}
                 onChange={(e) => set('headline', e.target.value)}
                 placeholder="O/A-Levels Math & Physics specialist"
+                aria-invalid={!!errors.headline}
               />
             </Field>
           </div>
           <div className="sm:col-span-2">
-            <Field label="About me">
+            <Field label="About me" error={errors.bio}>
               <Textarea
                 value={form.bio}
                 onChange={(e) => set('bio', e.target.value)}
                 placeholder="Tell students about your teaching style and experience…"
                 className="min-h-[120px]"
+                aria-invalid={!!errors.bio}
               />
             </Field>
           </div>
@@ -569,6 +662,7 @@ function TutorProfileForm() {
           <Field
             label="Hourly rate (PKR)"
             hint={`Between PKR ${PRICE_BOUNDS.min.toLocaleString()} and PKR ${PRICE_BOUNDS.max.toLocaleString()}.`}
+            error={errors.hourlyRate}
           >
             <Input
               type="number"
@@ -578,6 +672,7 @@ function TutorProfileForm() {
               value={form.hourlyRate}
               onChange={(e) => set('hourlyRate', e.target.value)}
               placeholder="2000"
+              aria-invalid={!!errors.hourlyRate}
             />
           </Field>
           <Field label="Monthly package (PKR)" hint="Optional — for recurring students.">
@@ -598,6 +693,124 @@ function TutorProfileForm() {
           Save changes
         </Button>
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Parent — manage children                                                  */
+/* -------------------------------------------------------------------------- */
+function ParentChildren() {
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', gradeLevel: '', school: '', notes: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    authService
+      .listChildren()
+      .then((c) => !cancelled && setChildren(c))
+      .catch(() => {})
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const add = async () => {
+    if (form.name.trim().length < 2) {
+      toast.error('Enter the child’s name');
+      return;
+    }
+    setAdding(true);
+    try {
+      const child = await authService.addChild({
+        name: form.name.trim(),
+        gradeLevel: form.gradeLevel || undefined,
+        school: form.school || undefined,
+        notes: form.notes || undefined,
+      });
+      setChildren((c) => [...c, child]);
+      setForm({ name: '', gradeLevel: '', school: '', notes: '' });
+      toast.success('Child added');
+    } catch (e) {
+      toast.error('Could not add child', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    try {
+      await authService.removeChild(id);
+      setChildren((c) => c.filter((x) => x.id !== id));
+    } catch {
+      toast.error('Could not remove child');
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border bg-card p-6 shadow-soft">
+      <SectionTitle icon={User} title="My children" hint="Whom you book tutoring for" />
+
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : children.length === 0 ? (
+        <p className="mb-4 text-sm text-muted-foreground">No children added yet — add one below.</p>
+      ) : (
+        <ul className="mb-5 divide-y rounded-xl border">
+          {children.map((c) => (
+            <li key={c.id} className="flex items-center gap-3 p-3">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="text-xs">{getInitials(c.name)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{c.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {[c.gradeLevel, c.school].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => remove(c.id)}>
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Child’s name">
+          <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ali Shah" />
+        </Field>
+        <Field label="Grade / class">
+          <Select value={form.gradeLevel} onValueChange={(v) => setForm((f) => ({ ...f, gradeLevel: v }))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select grade" />
+            </SelectTrigger>
+            <SelectContent>
+              {GRADE_LEVELS.map((g) => (
+                <SelectItem key={g} value={g}>
+                  {g}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="School (optional)">
+          <Input value={form.school} onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))} placeholder="Beaconhouse" />
+        </Field>
+        <Field label="Notes (optional)" hint="e.g. subjects they need help with">
+          <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Needs Maths & Physics" />
+        </Field>
+      </div>
+      <Button variant="outline" className="mt-4" onClick={add} disabled={adding}>
+        {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <User className="h-4 w-4" />} Add child
+      </Button>
     </div>
   );
 }

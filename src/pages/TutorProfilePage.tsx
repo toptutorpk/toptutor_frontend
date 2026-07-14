@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   MapPin,
   GraduationCap,
@@ -15,8 +15,10 @@ import {
   Video,
   Home,
   Building2,
+  Star,
 } from 'lucide-react';
 import type { SessionMode, Tutor } from '@/types';
+import { useBookIntro } from '@/hooks/useBookIntro';
 import { cn, getInitials } from '@/lib/utils';
 import { Container } from '@/components/common/Container';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -220,37 +222,52 @@ export default function TutorProfilePage() {
 
               {/* Reviews */}
               <TabsContent value="reviews" className="space-y-6">
-                <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-6 shadow-soft sm:flex-row sm:items-center">
-                  <div className="text-center">
-                    <div className="font-display text-5xl font-extrabold text-gradient">
-                      {tutor.rating.toFixed(1)}
+                {tutor.reviewCount === 0 ? (
+                  <div className="rounded-2xl border bg-card p-10 text-center shadow-soft">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                      <Star className="h-7 w-7" />
                     </div>
-                    <RatingStars value={tutor.rating} size={16} className="mt-1 justify-center" />
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {tutor.reviewCount} reviews
-                    </div>
+                    <h3 className="font-display text-lg font-bold">No reviews yet</h3>
+                    <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+                      {tutor.name.split(' ')[0]} is new to TopTutor. Book a session and be the first to
+                      leave a review.
+                    </p>
                   </div>
-                  <Separator orientation="vertical" className="hidden h-20 sm:block" />
-                  <div className="flex-1 space-y-1.5">
-                    {[5, 4, 3, 2, 1].map((star) => {
-                      const pct = star === 5 ? 78 : star === 4 ? 16 : star === 3 ? 4 : 1;
-                      return (
-                        <div key={star} className="flex items-center gap-2 text-sm">
-                          <span className="w-3 text-muted-foreground">{star}</span>
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                            <div className="h-full rounded-full bg-gold-400" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="w-8 text-right text-xs text-muted-foreground">{pct}%</span>
+                ) : (
+                  <>
+                    <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-6 shadow-soft sm:flex-row sm:items-center">
+                      <div className="text-center">
+                        <div className="font-display text-5xl font-extrabold text-gradient">
+                          {tutor.rating.toFixed(1)}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {tutor.reviews.map((r) => (
-                    <ReviewCard key={r.id} review={r} />
-                  ))}
-                </div>
+                        <RatingStars value={tutor.rating} size={16} className="mt-1 justify-center" />
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {tutor.reviewCount} reviews
+                        </div>
+                      </div>
+                      <Separator orientation="vertical" className="hidden h-20 sm:block" />
+                      <div className="flex-1 space-y-1.5">
+                        {[5, 4, 3, 2, 1].map((star) => {
+                          const pct = star === 5 ? 78 : star === 4 ? 16 : star === 3 ? 4 : 1;
+                          return (
+                            <div key={star} className="flex items-center gap-2 text-sm">
+                              <span className="w-3 text-muted-foreground">{star}</span>
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                                <div className="h-full rounded-full bg-gold-400" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="w-8 text-right text-xs text-muted-foreground">{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {tutor.reviews.map((r) => (
+                        <ReviewCard key={r.id} review={r} />
+                      ))}
+                    </div>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
           </div>
@@ -263,16 +280,30 @@ export default function TutorProfilePage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Message {tutor.name.split(' ')[0]} directly — your number stays private until you book.
               </p>
-              <Button variant="outline" className="mt-4 w-full" asChild>
-                <Link to="/dashboard/student/messages">
-                  <MessageCircle className="h-4 w-4" /> Send a message
-                </Link>
-              </Button>
+              <MessageTutorButton tutor={tutor} />
             </div>
           </aside>
         </div>
       </Container>
     </div>
+  );
+}
+
+/**
+ * Books the free intro call (the gate that unlocks messaging) and jumps into the chat.
+ * Guests are sent to log in; tutors/admins are nudged to use a learner account.
+ */
+function MessageTutorButton({ tutor }: { tutor: Tutor }) {
+  const { book, loading } = useBookIntro();
+  return (
+    <Button
+      variant="outline"
+      className="mt-4 w-full"
+      disabled={loading}
+      onClick={() => book(Number(tutor.id), { tutorName: tutor.name, slug: tutor.slug })}
+    >
+      <MessageCircle className="h-4 w-4" /> {loading ? 'Opening…' : 'Send a message'}
+    </Button>
   );
 }
 

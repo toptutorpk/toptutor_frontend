@@ -179,4 +179,18 @@ export const http = {
     const res = await apiClient.put<ApiEnvelope<T>>(url, body, config);
     return res.data.data;
   },
+  async del<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const res = await apiClient.delete<ApiEnvelope<T>>(url, config);
+    return res.data.data;
+  },
+  /** Multipart upload. Axios sets the multipart boundary itself when given FormData. */
+  async upload<T>(url: string, form: FormData, onProgress?: (percent: number) => void): Promise<T> {
+    const res = await apiClient.post<ApiEnvelope<T>>(url, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+      },
+    });
+    return res.data.data;
+  },
 };
