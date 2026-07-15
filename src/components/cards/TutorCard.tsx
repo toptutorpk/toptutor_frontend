@@ -11,7 +11,22 @@ import {
   Award,
   Globe,
   Check,
+  Sparkles,
 } from 'lucide-react';
+
+/** Green "Free Demo" pill — the leverage for tutors who opt into demo sessions. */
+function DemoBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+        className,
+      )}
+    >
+      <Sparkles className="h-3 w-3" /> Free Demo
+    </span>
+  );
+}
 import { cn, formatPKR, getInitials } from '@/lib/utils';
 import type { SessionMode, TeachingLanguage, Tutor } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -58,16 +73,12 @@ function FavoriteButton({ tutorId, className }: { tutorId: string; className?: s
       }}
       aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur transition-transform hover:scale-110 dark:bg-slate-900/80',
+        'flex h-9 w-9 items-center justify-center rounded-full border bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition-all hover:scale-110 hover:border-red-200 hover:text-red-500',
+        isFavorite && 'border-red-200 bg-red-50 text-red-500 dark:border-red-500/30 dark:bg-red-500/10',
         className,
       )}
     >
-      <Heart
-        className={cn(
-          'h-4.5 w-4.5 transition-colors',
-          isFavorite ? 'fill-red-500 text-red-500' : 'text-slate-500',
-        )}
-      />
+      <Heart className={cn('h-4 w-4 transition-transform', isFavorite && 'fill-red-500')} />
     </button>
   );
 }
@@ -134,12 +145,11 @@ function TutorListCard({ tutor, index }: { tutor: Tutor; index: number }) {
           </Badge>
         )}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-10">
-          <Link to={`/tutors/${tutor.slug}`}>
-            <h3 className="font-display text-xl font-bold leading-tight transition-colors group-hover:text-primary">
-              {tutor.name}
-            </h3>
+          <Link to={`/tutors/${tutor.slug}`} className="hover:underline">
+            <h3 className="font-display text-xl font-bold leading-tight">{tutor.name}</h3>
           </Link>
           <VerificationBadge status={tutor.verificationStatus} size="sm" />
+          {tutor.demoAvailable && <DemoBadge />}
           {tutor.isOnline && (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active now
@@ -147,22 +157,17 @@ function TutorListCard({ tutor, index }: { tutor: Tutor; index: number }) {
           )}
         </div>
 
-        <p className="mt-0.5 text-sm text-muted-foreground">{tutor.education[0]?.institution}</p>
+        {tutor.education[0]?.institution && (
+          <p className="mt-0.5 text-sm text-muted-foreground">{tutor.education[0].institution}</p>
+        )}
 
-        <Link
-          to={`/tutors/${tutor.slug}`}
-          className="mt-2 block text-[15px] font-semibold text-primary hover:underline"
-        >
-          {tutor.headline} · {tutor.experienceYears}+ years experience
-        </Link>
+        <p className="mt-1.5 line-clamp-2 text-[15px] font-medium leading-snug text-foreground/90">
+          {tutor.headline}
+        </p>
 
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{tutor.bio}</p>
-        <Link
-          to={`/tutors/${tutor.slug}`}
-          className="mt-1 inline-block text-sm font-semibold text-foreground underline underline-offset-2 hover:text-primary"
-        >
-          read more
-        </Link>
+        {tutor.bio && (
+          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{tutor.bio}</p>
+        )}
 
         <p className="mt-3 line-clamp-1 text-sm">
           <span className="text-muted-foreground">Subjects: </span>
@@ -258,16 +263,15 @@ function TutorGridCard({ tutor, index }: { tutor: Tutor; index: number }) {
             </Avatar>
             {tutor.isOnline && <OnlineDot className="bottom-0.5 right-0.5" />}
           </div>
-          <div className="mb-1.5 flex-1">
+          <div className="mb-1.5 flex flex-1 flex-wrap items-center gap-1.5">
             <VerificationBadge status={tutor.verificationStatus} size="sm" />
+            {tutor.demoAvailable && <DemoBadge />}
           </div>
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <Link to={`/tutors/${tutor.slug}`} className="min-w-0">
-            <h3 className="truncate font-display text-lg font-bold leading-tight transition-colors group-hover:text-primary">
-              {tutor.name}
-            </h3>
+          <Link to={`/tutors/${tutor.slug}`} className="min-w-0 hover:underline">
+            <h3 className="truncate font-display text-lg font-bold leading-tight">{tutor.name}</h3>
           </Link>
           <span
             className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"

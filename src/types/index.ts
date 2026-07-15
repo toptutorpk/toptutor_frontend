@@ -121,6 +121,7 @@ export interface Tutor {
   isPremium?: boolean;
   isFavorite?: boolean;
   isOnline?: boolean;
+  demoAvailable?: boolean;
 }
 
 export interface Subject {

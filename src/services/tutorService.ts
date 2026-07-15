@@ -1,5 +1,6 @@
 import { http } from '@/api/client';
 import type {
+  AvailabilitySlot,
   Certification,
   City,
   Education,
@@ -12,6 +13,32 @@ import type {
   VerificationStatus,
   VerificationStep,
 } from '@/types';
+
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Groups the backend's flat availability slots (day 0=Mon..6=Sun) into the weekly view the UI uses. */
+function buildAvailability(slots?: { mode: string; day: number; time: string }[]): AvailabilitySlot[] {
+  if (!slots || slots.length === 0) return [];
+  const byDay = new Map<number, string[]>();
+  for (const s of slots) {
+    const arr = byDay.get(s.day) ?? [];
+    if (!arr.includes(s.time)) arr.push(s.time);
+    byDay.set(s.day, arr);
+  }
+  const today = new Date();
+  return [...byDay.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([day, times]) => {
+      const jsDay = (day + 1) % 7; // backend Mon=0 → JS Sun=0
+      const date = new Date(today);
+      date.setDate(today.getDate() + ((jsDay - today.getDay() + 7) % 7));
+      return {
+        day: DAY_LABELS[day],
+        date: date.toISOString(),
+        slots: [...times].sort().map((t) => ({ time: t, available: true })),
+      };
+    });
+}
 
 /* ============================================================================
    Tutor service — now backed by the REAL backend (public browse API).
@@ -38,6 +65,7 @@ interface BackendCard {
   slug: string;
   name: string;
   headline?: string;
+  institute?: string;
   photoUrl?: string;
   coverUrl?: string;
   verificationStatus: string;
@@ -53,8 +81,11 @@ interface BackendCard {
   modes?: string[];
   rating?: number | null;
   reviewCount?: number;
+  online?: boolean;
+  demoAvailable?: boolean;
 }
 interface BackendDetail extends BackendCard {
+  availability?: { mode: string; day: number; time: string }[];
   bio?: string;
   videoIntroUrl?: string;
   skills?: string[];
@@ -122,7 +153,9 @@ function cardToTutor(c: BackendCard): Tutor {
     responseRate: 0,
     repeatHireRate: 0,
     totalSessions: 0,
-    education: [],
+    // The card only needs the most recent institute (shown under the name); full education
+    // is loaded on the detail page.
+    education: c.institute ? [{ degree: '', institution: c.institute, year: '', verified: false }] : [],
     certifications: [],
     skills: [],
     packages: buildPackages(rate),
@@ -130,7 +163,8 @@ function cardToTutor(c: BackendCard): Tutor {
     reviews: [],
     isPremium: false,
     isFavorite: false,
-    isOnline: false,
+    isOnline: c.online ?? false,
+    demoAvailable: c.demoAvailable ?? false,
   };
 }
 
@@ -166,6 +200,8 @@ function detailToTutor(d: BackendDetail): Tutor {
     repeatHireRate: d.repeatHireRate ?? 0,
     totalSessions: d.totalSessions ?? 0,
     reviews: [],
+    availability: buildAvailability(d.availability),
+    demoAvailable: d.demoAvailable ?? false,
   };
 }
 

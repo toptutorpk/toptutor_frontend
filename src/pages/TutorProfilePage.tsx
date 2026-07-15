@@ -16,6 +16,7 @@ import {
   Home,
   Building2,
   Star,
+  Sparkles,
 } from 'lucide-react';
 import type { SessionMode, Tutor } from '@/types';
 import { useBookIntro } from '@/hooks/useBookIntro';
@@ -78,6 +79,20 @@ export default function TutorProfilePage() {
                       {tutor.name}
                     </h1>
                     <VerificationBadge status={tutor.verificationStatus} />
+                    {tutor.demoAvailable && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                        <Sparkles className="h-3 w-3" /> Free Demo
+                      </span>
+                    )}
+                    {tutor.isOnline && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                        </span>
+                        Active now
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-muted-foreground">{tutor.headline}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -275,6 +290,7 @@ export default function TutorProfilePage() {
           {/* Sidebar */}
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <BookingPanel tutor={tutor} />
+            <AvailabilityCard tutor={tutor} />
             <div className="mt-4 rounded-2xl border bg-card p-5 shadow-soft">
               <h3 className="font-display font-bold">Have a question?</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -285,6 +301,42 @@ export default function TutorProfilePage() {
           </aside>
         </div>
       </Container>
+    </div>
+  );
+}
+
+/** Weekly available hours shown on the profile (from the tutor's real availability). */
+function AvailabilityCard({ tutor }: { tutor: Tutor }) {
+  if (!tutor.availability || tutor.availability.length === 0) return null;
+  return (
+    <div className="mt-4 rounded-2xl border bg-card p-5 shadow-soft">
+      <div className="flex items-center gap-2">
+        <CalendarClock className="h-4 w-4 text-brand-500" />
+        <h3 className="font-display font-bold">Available hours</h3>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {tutor.availability.map((d) => {
+          const times = d.slots.filter((s) => s.available);
+          if (times.length === 0) return null;
+          return (
+            <li key={d.day} className="flex items-start gap-3 text-sm">
+              <span className="w-10 shrink-0 font-semibold">{d.day}</span>
+              <span className="flex flex-wrap gap-1.5">
+                {times.map((s) => (
+                  <span key={s.time} className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                    {s.time}
+                  </span>
+                ))}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {tutor.demoAvailable && (
+        <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+          <Sparkles className="h-3.5 w-3.5" /> Free demo session available
+        </p>
+      )}
     </div>
   );
 }
