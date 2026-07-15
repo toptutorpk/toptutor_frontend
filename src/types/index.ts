@@ -122,6 +122,16 @@ export interface Tutor {
   isFavorite?: boolean;
   isOnline?: boolean;
   demoAvailable?: boolean;
+  availabilitySlots?: AvailabilityTimeSlot[];
+}
+
+/** A bookable availability time-range shown on the tutor profile. */
+export interface AvailabilityTimeSlot {
+  id: number;
+  mode: 'ONLINE' | 'HOME';
+  start: string;
+  end: string;
+  booked: boolean;
 }
 
 export interface Subject {

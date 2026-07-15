@@ -1,4 +1,6 @@
-import { useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
   GraduationCap,
@@ -20,6 +22,11 @@ import {
 } from 'lucide-react';
 import type { SessionMode, Tutor } from '@/types';
 import { useBookIntro } from '@/hooks/useBookIntro';
+import { useAuthStore } from '@/store/authStore';
+import { availabilityService, formatRange } from '@/services/availabilityService';
+import { queryKeys } from '@/api/queryKeys';
+import { toast } from '@/components/ui/sonner';
+import { ApiError } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
 import { Container } from '@/components/common/Container';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -305,33 +312,115 @@ export default function TutorProfilePage() {
   );
 }
 
-/** Weekly available hours shown on the profile (from the tutor's real availability). */
+/** "Available time slots" card — Online/Home time ranges with Available/Booked state (bookable). */
 function AvailabilityCard({ tutor }: { tutor: Tutor }) {
-  if (!tutor.availability || tutor.availability.length === 0) return null;
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
+
+  const slots = tutor.availabilitySlots ?? [];
+  const hasOnline = slots.some((s) => s.mode === 'ONLINE');
+  const hasHome = slots.some((s) => s.mode === 'HOME');
+  const [mode, setMode] = useState<'ONLINE' | 'HOME'>(hasOnline ? 'ONLINE' : 'HOME');
+
+  const book = useMutation({
+    mutationFn: (slotId: number) => availabilityService.bookSlot(slotId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.tutors.detail(tutor.slug) });
+      toast.success('Slot booked', { description: 'This slot is now reserved.' });
+    },
+    onError: (e) =>
+      toast.error('Could not book', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      }),
+  });
+
+  const onBook = (slotId: number) => {
+    if (!user) {
+      navigate('/login', { state: { from: `/tutors/${tutor.slug}` } });
+      return;
+    }
+    if (user.role !== 'student' && user.role !== 'parent') {
+      toast.info('Use a student or parent account to book.');
+      return;
+    }
+    book.mutate(slotId);
+  };
+
+  if (slots.length === 0) return null;
+
+  const shown = slots
+    .filter((s) => s.mode === (hasOnline && hasHome ? mode : hasOnline ? 'ONLINE' : 'HOME'))
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const openCount = shown.filter((s) => !s.booked).length;
+
   return (
     <div className="mt-4 rounded-2xl border bg-card p-5 shadow-soft">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-brand-500" />
-        <h3 className="font-display font-bold">Available hours</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-brand-500" />
+          <h3 className="font-display font-bold">Available time slots</h3>
+          <span className="text-xs text-muted-foreground">
+            · {openCount} of {shown.length} open
+          </span>
+        </div>
+        {hasOnline && hasHome && (
+          <div className="flex rounded-lg border p-0.5 text-xs font-medium">
+            <button
+              onClick={() => setMode('ONLINE')}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2.5 py-1 transition-colors',
+                mode === 'ONLINE' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Video className="h-3.5 w-3.5" /> Online
+            </button>
+            <button
+              onClick={() => setMode('HOME')}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2.5 py-1 transition-colors',
+                mode === 'HOME' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Home className="h-3.5 w-3.5" /> Home Visit
+            </button>
+          </div>
+        )}
       </div>
-      <ul className="mt-3 space-y-2">
-        {tutor.availability.map((d) => {
-          const times = d.slots.filter((s) => s.available);
-          if (times.length === 0) return null;
-          return (
-            <li key={d.day} className="flex items-start gap-3 text-sm">
-              <span className="w-10 shrink-0 font-semibold">{d.day}</span>
-              <span className="flex flex-wrap gap-1.5">
-                {times.map((s) => (
-                  <span key={s.time} className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                    {s.time}
-                  </span>
-                ))}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {shown.map((s) =>
+          s.booked ? (
+            <span
+              key={s.id}
+              className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
+            >
+              <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
+              <span className="text-[10px] font-bold uppercase tracking-wide">Booked</span>
+            </span>
+          ) : (
+            <button
+              key={s.id}
+              disabled={book.isPending}
+              onClick={() => onBook(s.id)}
+              title="Book this slot"
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
+            >
+              <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
+            </button>
+          ),
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-brand-500" /> Available
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-red-500" /> Booked
+        </span>
+      </div>
+
       {tutor.demoAvailable && (
         <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
           <Sparkles className="h-3.5 w-3.5" /> Free demo session available

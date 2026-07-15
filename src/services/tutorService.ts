@@ -1,6 +1,6 @@
 import { http } from '@/api/client';
 import type {
-  AvailabilitySlot,
+  AvailabilityTimeSlot,
   Certification,
   City,
   Education,
@@ -13,32 +13,6 @@ import type {
   VerificationStatus,
   VerificationStep,
 } from '@/types';
-
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-/** Groups the backend's flat availability slots (day 0=Mon..6=Sun) into the weekly view the UI uses. */
-function buildAvailability(slots?: { mode: string; day: number; time: string }[]): AvailabilitySlot[] {
-  if (!slots || slots.length === 0) return [];
-  const byDay = new Map<number, string[]>();
-  for (const s of slots) {
-    const arr = byDay.get(s.day) ?? [];
-    if (!arr.includes(s.time)) arr.push(s.time);
-    byDay.set(s.day, arr);
-  }
-  const today = new Date();
-  return [...byDay.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([day, times]) => {
-      const jsDay = (day + 1) % 7; // backend Mon=0 → JS Sun=0
-      const date = new Date(today);
-      date.setDate(today.getDate() + ((jsDay - today.getDay() + 7) % 7));
-      return {
-        day: DAY_LABELS[day],
-        date: date.toISOString(),
-        slots: [...times].sort().map((t) => ({ time: t, available: true })),
-      };
-    });
-}
 
 /* ============================================================================
    Tutor service — now backed by the REAL backend (public browse API).
@@ -85,7 +59,7 @@ interface BackendCard {
   demoAvailable?: boolean;
 }
 interface BackendDetail extends BackendCard {
-  availability?: { mode: string; day: number; time: string }[];
+  availability?: { id: number; mode: string; start: string; end: string; booked: boolean }[];
   bio?: string;
   videoIntroUrl?: string;
   skills?: string[];
@@ -200,7 +174,13 @@ function detailToTutor(d: BackendDetail): Tutor {
     repeatHireRate: d.repeatHireRate ?? 0,
     totalSessions: d.totalSessions ?? 0,
     reviews: [],
-    availability: buildAvailability(d.availability),
+    availabilitySlots: (d.availability ?? []).map((s) => ({
+      id: s.id,
+      mode: s.mode === 'HOME' ? 'HOME' : 'ONLINE',
+      start: s.start,
+      end: s.end,
+      booked: s.booked,
+    })) as AvailabilityTimeSlot[],
     demoAvailable: d.demoAvailable ?? false,
   };
 }
