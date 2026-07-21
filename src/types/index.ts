@@ -114,6 +114,7 @@ export interface Tutor {
   totalSessions: number;
   education: Education[];
   certifications: Certification[];
+  courses?: { abbreviation: string; title: string }[];
   skills: string[];
   packages: SessionPackage[];
   availability: AvailabilitySlot[];

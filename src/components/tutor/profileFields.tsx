@@ -1,9 +1,11 @@
-import { Check, Plus, Trash2, type LucideIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Plus, Trash2, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import type { SessionMode } from '@/types';
+import type { Course } from '@/services/authService';
 import { MODE_OPTIONS, EMPTY_ROW, type CredentialRow } from './profileFieldOptions';
 
 /* Shared building blocks for tutor profile data — used by both the onboarding
@@ -181,6 +183,82 @@ export function CredentialEditor({
       <Button variant="outline" size="sm" onClick={add}>
         <Plus className="h-4 w-4" /> Add {rows.length ? 'another' : 'one'}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Courses editor: the tutor types a code + title and clicks Add — it appears as a chip and the inputs
+ * clear, ready for the next. Chips are removable. Matches the WhatsApp-style "add many" flow.
+ */
+export function CoursesEditor({
+  courses,
+  onChange,
+}: {
+  courses: Course[];
+  onChange: (courses: Course[]) => void;
+}) {
+  const [abbr, setAbbr] = useState('');
+  const [title, setTitle] = useState('');
+
+  const add = () => {
+    const a = abbr.trim();
+    const t = title.trim();
+    if (!a || !t) return;
+    onChange([...courses, { abbreviation: a, title: t }]);
+    setAbbr('');
+    setTitle('');
+  };
+  const remove = (i: number) => onChange(courses.filter((_, idx) => idx !== i));
+  const onEnter = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      add();
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {courses.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {courses.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-full border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
+            >
+              <span className="font-semibold text-brand-700 dark:text-brand-400">{c.abbreviation}</span>
+              <span className="text-muted-foreground">{c.title}</span>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                aria-label={`Remove ${c.abbreviation}`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={abbr}
+          onChange={(e) => setAbbr(e.target.value)}
+          onKeyDown={onEnter}
+          placeholder="Code (e.g. CS101)"
+          className="w-36"
+        />
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={onEnter}
+          placeholder="Course title (e.g. Intro to Programming)"
+          className="min-w-[200px] flex-1"
+        />
+        <Button variant="outline" size="sm" onClick={add} disabled={!abbr.trim() || !title.trim()}>
+          <Plus className="h-4 w-4" /> Add
+        </Button>
+      </div>
     </div>
   );
 }

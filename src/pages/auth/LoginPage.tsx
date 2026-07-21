@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Loader2, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { AuthHeader } from '@/components/auth/AuthHeader';
 import { SocialButtons } from '@/components/auth/SocialButtons';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/components/ui/sonner';
+import type { User } from '@/types';
 
 const schema = z.object({
   // Accepts an email OR a phone number (students/parents may log in with phone).
@@ -24,9 +25,15 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string })?.from ?? '/dashboard/tutor';
+
+  // When the account has 2FA on, login returns a challenge and we switch to the code step.
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const {
     register,
@@ -34,24 +41,96 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
+  const goToDashboard = (user: User) => {
+    const dest =
+      user.role === 'admin'
+        ? '/admin'
+        : user.role === 'tutor'
+          ? '/dashboard/tutor/profile'
+          : user.role === 'student' || user.role === 'parent'
+            ? '/dashboard/student'
+            : from;
+    navigate(dest, { replace: true });
+  };
+
   const onSubmit = async (values: FormValues) => {
     try {
-      const user = await login(values);
+      const result = await login(values);
+      if (result.twoFactorRequired) {
+        setChallengeId(result.challengeId);
+        toast.success('Check your email', { description: 'We sent you a 6-digit login code.' });
+        return;
+      }
       toast.success('Welcome back!');
-      // Route to the right dashboard by role.
-      const dest =
-        user.role === 'admin'
-          ? '/admin'
-          : user.role === 'tutor'
-            ? '/dashboard/tutor/profile'
-            : user.role === 'student' || user.role === 'parent'
-              ? '/dashboard/student'
-              : from;
-      navigate(dest, { replace: true });
+      goToDashboard(result.user);
     } catch {
       toast.error('Login failed', { description: 'Please check your credentials and try again.' });
     }
   };
+
+  const onVerify = async () => {
+    if (!challengeId || code.trim().length !== 6) return;
+    setVerifying(true);
+    try {
+      const user = await verifyTwoFactor(challengeId, code.trim());
+      toast.success('Welcome back!');
+      goToDashboard(user);
+    } catch (e) {
+      toast.error('Verification failed', {
+        description: e instanceof Error ? e.message : 'That code is incorrect or expired.',
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // ---- Two-factor code step ----
+  if (challengeId) {
+    return (
+      <div>
+        <AuthHeader title="Two-factor authentication" subtitle="Enter the 6-digit code we emailed you." />
+        <div className="space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="code">Verification code</Label>
+            <Input
+              id="code"
+              inputMode="numeric"
+              autoFocus
+              maxLength={6}
+              placeholder="000000"
+              className="text-center text-lg tracking-[0.5em]"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(e) => e.key === 'Enter' && onVerify()}
+            />
+          </div>
+          <Button
+            variant="gradient"
+            size="lg"
+            className="w-full"
+            disabled={verifying || code.length !== 6}
+            onClick={onVerify}
+          >
+            {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
+            Verify & continue
+          </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setChallengeId(null);
+              setCode('');
+            }}
+            className="w-full text-center text-xs font-medium text-muted-foreground hover:text-primary"
+          >
+            Back to login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -65,6 +65,7 @@ interface BackendDetail extends BackendCard {
   skills?: string[];
   education?: BackendCredential[];
   certifications?: BackendCredential[];
+  courses?: { abbreviation: string; title: string }[];
   verificationSteps?: BackendVerificationStep[];
   totalSessions?: number;
   responseRate?: number | null;
@@ -169,6 +170,7 @@ function detailToTutor(d: BackendDetail): Tutor {
     skills: d.skills ?? [],
     education,
     certifications,
+    courses: d.courses ?? [],
     verificationSteps: steps,
     responseRate: d.responseRate ?? 0,
     repeatHireRate: d.repeatHireRate ?? 0,

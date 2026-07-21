@@ -28,13 +28,14 @@ import {
 } from '@/components/ui/select';
 import { Logo } from '@/components/common/Logo';
 import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/authService';
+import { authService, type Course } from '@/services/authService';
 import { ApiError, getAccessToken } from '@/api/client';
 import { toast } from '@/components/ui/sonner';
 import { PRICE_BOUNDS } from '@/constants';
 import { useProfileCatalogs } from '@/hooks/useCatalogs';
 import {
   ChipGroup,
+  CoursesEditor,
   CredentialEditor,
   Field,
   ModeToggles,
@@ -67,6 +68,7 @@ interface ProfileForm {
   modes: SessionMode[];
   education: CredentialRow[];
   certifications: CredentialRow[];
+  courses: Course[];
   hourlyRate: string;
   monthlyRate: string;
 }
@@ -104,6 +106,7 @@ export default function TutorProfileCreatePage() {
     modes: [],
     education: [{ ...EMPTY_ROW }],
     certifications: [],
+    courses: [],
     hourlyRate: '',
     monthlyRate: '',
   });
@@ -194,6 +197,7 @@ export default function TutorProfileCreatePage() {
         modes: listToUndef(form.modes),
         education: listToUndef(education),
         certifications: listToUndef(certifications),
+        courses: listToUndef(form.courses.filter((c) => c.abbreviation.trim() && c.title.trim())),
       });
       if (onboarding.password) {
         // Local signup: log in with the credentials set at registration.
@@ -356,17 +360,6 @@ export default function TutorProfileCreatePage() {
                     placeholder="https://…"
                   />
                 </Field>
-                <Field
-                  label="Video intro URL"
-                  icon={Video}
-                  hint="Optional — a 2-minute intro. Boosts trust and bookings."
-                >
-                  <Input
-                    value={form.videoIntroUrl}
-                    onChange={(e) => set('videoIntroUrl', e.target.value)}
-                    placeholder="https://youtu.be/…"
-                  />
-                </Field>
                 <Field label="Cover image URL" hint="Optional — a banner shown at the top of your profile.">
                   <Input
                     value={form.coverUrl}
@@ -388,6 +381,10 @@ export default function TutorProfileCreatePage() {
                   selected={form.subjects}
                   onToggle={(v) => toggleIn('subjects', v)}
                 />
+              </div>
+              <div>
+                <SectionTitle icon={BookOpen} title="Courses" hint="Add a course code + title; add as many as you like" />
+                <CoursesEditor courses={form.courses} onChange={(c) => set('courses', c)} />
               </div>
               <div>
                 <SectionTitle icon={GraduationCap} title="Grade levels" />

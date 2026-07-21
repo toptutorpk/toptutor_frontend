@@ -37,7 +37,11 @@ interface Handlers {
 
 /** Derives the ws(s):// broker URL from the REST base URL (…/api/v1 → …/ws). */
 function brokerUrl(): string {
-  const origin = env.apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+  const base = env.apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+  // Relative base (e.g. "/api/v1" -> "") means "use the current page origin",
+  // which is proxied to the backend by Vite. Build an absolute ws(s):// URL
+  // from window.location so the STOMP client gets a valid broker URL.
+  const origin = /^https?:\/\//.test(base) ? base : window.location.origin;
   return origin.replace(/^http/, 'ws') + '/ws';
 }
 

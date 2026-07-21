@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Camera,
   Bell,
   Lock,
   Globe,
@@ -15,6 +14,7 @@ import {
   Video,
   Wallet,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Select,
   SelectContent,
@@ -34,13 +34,14 @@ import {
 } from '@/components/ui/select';
 import {
   ChipGroup,
+  CoursesEditor,
   CredentialEditor,
   Field,
   ModeToggles,
   SectionTitle,
 } from '@/components/tutor/profileFields';
 import { MediaUploadField } from '@/components/tutor/MediaUploadField';
-import { uploadService } from '@/services/uploadService';
+import { AvatarUpload } from '@/components/common/AvatarUpload';
 import {
   EMPTY_ROW,
   GENDER_OPTIONS,
@@ -48,8 +49,18 @@ import {
 } from '@/components/tutor/profileFieldOptions';
 import { GRADE_LEVELS, PRICE_BOUNDS } from '@/constants';
 import { useProfileCatalogs } from '@/hooks/useCatalogs';
+import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuthStore } from '@/store/authStore';
-import { authService, type Child } from '@/services/authService';
+import { authService, type Child, type Course } from '@/services/authService';
+import { accountService } from '@/services/accountService';
 import { ApiError, getAccessToken } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
@@ -132,25 +143,7 @@ export default function ProfileSettings() {
               </Button>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border bg-card p-6 shadow-soft">
-              <div>
-                <h3 className="font-display font-bold">Two-factor authentication</h3>
-                <p className="text-sm text-muted-foreground">Add an extra layer of security to your account.</p>
-              </div>
-              <Switch />
-            </div>
-
-            <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-500/20 dark:bg-red-500/10">
-              <div>
-                <h3 className="font-display font-bold text-red-700 dark:text-red-400">Delete account</h3>
-                <p className="text-sm text-red-600/80 dark:text-red-400/70">
-                  Permanently delete your account and all data.
-                </p>
-              </div>
-              <Button variant="destructive">
-                <Trash2 className="h-4 w-4" /> Delete
-              </Button>
-            </div>
+            <SecuritySettings />
           </div>
         </TabsContent>
       </Tabs>
@@ -159,58 +152,126 @@ export default function ProfileSettings() {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Security — two-factor auth + delete account (all roles)                   */
+/* -------------------------------------------------------------------------- */
+function SecuritySettings() {
+  const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const [twoFactor, setTwoFactor] = useState<boolean | null>(null);
+  const [savingTfa, setSavingTfa] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    accountService
+      .me()
+      .then((m) => !cancelled && setTwoFactor(m.twoFactorEnabled))
+      .catch(() => !cancelled && setTwoFactor(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleTfa = async (next: boolean) => {
+    setSavingTfa(true);
+    try {
+      await accountService.setTwoFactor(next);
+      setTwoFactor(next);
+      toast.success(next ? 'Two-factor authentication enabled' : 'Two-factor authentication disabled', {
+        description: next ? 'You’ll enter an emailed code each time you log in.' : undefined,
+      });
+    } catch (e) {
+      toast.error('Could not update two-factor authentication', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+    } finally {
+      setSavingTfa(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await accountService.deleteAccount();
+      toast.success('Your account has been deleted');
+      logout();
+      navigate('/', { replace: true });
+    } catch (e) {
+      toast.error('Could not delete account', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-2xl border bg-card p-6 shadow-soft">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          </span>
+          <div>
+            <h3 className="font-display font-bold">Two-factor authentication</h3>
+            <p className="text-sm text-muted-foreground">
+              Require a one-time code emailed to {user?.email ?? 'your email'} each time you log in.
+            </p>
+          </div>
+        </div>
+        <Switch checked={!!twoFactor} disabled={twoFactor === null || savingTfa} onCheckedChange={toggleTfa} />
+      </div>
+
+      <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-500/20 dark:bg-red-500/10">
+        <div>
+          <h3 className="font-display font-bold text-red-700 dark:text-red-400">Delete account</h3>
+          <p className="text-sm text-red-600/80 dark:text-red-400/70">
+            Permanently delete your account. This can’t be undone.
+          </p>
+        </div>
+        <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
+          <Trash2 className="h-4 w-4" /> Delete
+        </Button>
+      </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogDescription>
+              This permanently deactivates your account and removes your personal details. You’ll be signed
+              out immediately and won’t be able to log back in. Past bookings and receipts are retained for
+              records but are no longer linked to you. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Yes, delete my account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Profile header (shared)                                                   */
 /* -------------------------------------------------------------------------- */
-function ProfileHeader({
-  previewUrl,
-  onPickFile,
-  uploading,
-}: {
-  previewUrl?: string;
-  onPickFile?: (file: File) => void;
-  uploading?: boolean;
-}) {
+function ProfileHeader({ url, onChange }: { url?: string; onChange?: (url: string) => void }) {
   const user = useAuthStore((s) => s.user);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const src = previewUrl || user?.avatarUrl;
   return (
     <div className="flex items-center gap-4">
-      <div className="relative">
-        <Avatar className="h-20 w-20">
-          <AvatarImage src={src} alt={user?.name} />
-          <AvatarFallback className="text-xl">{getInitials(user?.name ?? 'TT')}</AvatarFallback>
-        </Avatar>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={!onPickFile || uploading}
-          className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-md disabled:opacity-60"
-          aria-label="Upload profile photo"
-        >
-          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-        </button>
-        {onPickFile && (
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onPickFile(file);
-              e.target.value = ''; // allow re-picking the same file
-            }}
-          />
-        )}
-      </div>
+      <AvatarUpload url={url} name={user?.name} size={80} onChange={onChange} />
       <div>
         <h3 className="font-display text-lg font-bold">{user?.name ?? 'Your Name'}</h3>
         <p className="text-sm capitalize text-muted-foreground">{user?.role ?? 'student'} account</p>
-        {onPickFile && (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {uploading ? 'Uploading photo…' : 'Click the camera to upload a profile photo.'}
-          </p>
-        )}
+        <p className="mt-0.5 text-xs text-muted-foreground">Click the camera to change your profile photo.</p>
       </div>
     </div>
   );
@@ -277,6 +338,7 @@ interface TutorProfileState {
   modes: SessionMode[];
   education: CredentialRow[];
   certifications: CredentialRow[];
+  courses: Course[];
   hourlyRate: string;
   monthlyRate: string;
 }
@@ -287,33 +349,7 @@ function TutorProfileForm() {
   const catalog = useProfileCatalogs();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoSessionUrl, setPhotoSessionUrl] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Picks a profile photo, shows an instant preview, and uploads it to object storage (R2).
-  const pickPhoto = async (file: File) => {
-    setPhotoPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setPhotoUploading(true);
-    try {
-      const result = await uploadService.upload(file, 'profile-image', {
-        replaces: photoSessionUrl ?? undefined,
-      });
-      setPhotoSessionUrl(result.url);
-      set('avatarUrl', result.url);
-      toast.success('Photo uploaded');
-    } catch (e) {
-      toast.error('Photo upload failed', {
-        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
-      });
-    } finally {
-      setPhotoUploading(false);
-    }
-  };
   const [form, setForm] = useState<TutorProfileState>({
     name: user?.name ?? '',
     phone: user?.phone ?? '',
@@ -334,6 +370,7 @@ function TutorProfileForm() {
     modes: [],
     education: [{ ...EMPTY_ROW }],
     certifications: [],
+    courses: [],
     hourlyRate: '',
     monthlyRate: '',
   });
@@ -364,6 +401,7 @@ function TutorProfileForm() {
           modes: (p.modes as SessionMode[]) ?? [],
           education: p.education?.length ? p.education : [{ ...EMPTY_ROW }],
           certifications: p.certifications ?? [],
+          courses: p.courses ?? [],
           hourlyRate: p.hourlyRate != null ? String(p.hourlyRate) : '',
           monthlyRate: p.monthlyRate != null ? String(p.monthlyRate) : '',
         }));
@@ -445,6 +483,7 @@ function TutorProfileForm() {
         certifications: listToUndef(
           form.certifications.filter((c) => c.title.trim() && c.org.trim()),
         ),
+        courses: listToUndef(form.courses.filter((c) => c.abbreviation.trim() && c.title.trim())),
       });
       // Reflect any name/city change in the session immediately.
       setSession(updated, getAccessToken() ?? '');
@@ -470,11 +509,7 @@ function TutorProfileForm() {
     <div className="space-y-6">
       {/* Account & basics */}
       <div className="rounded-2xl border bg-card p-6 shadow-soft">
-        <ProfileHeader
-          previewUrl={photoPreview ?? form.avatarUrl ?? undefined}
-          onPickFile={pickPhoto}
-          uploading={photoUploading}
-        />
+        <ProfileHeader url={form.avatarUrl || undefined} onChange={(u) => set('avatarUrl', u)} />
         <Separator className="my-6" />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Full name" icon={User} error={errors.name}>
@@ -557,16 +592,6 @@ function TutorProfileForm() {
             </Select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Intro video" icon={Video} hint="A 2-minute intro boosts bookings. MP4, WEBM or MOV.">
-              <MediaUploadField
-                kind="video"
-                category="video-intro"
-                value={form.videoIntroUrl || undefined}
-                onChange={(url) => set('videoIntroUrl', url ?? '')}
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
             <Field label="Cover image" hint="A banner shown at the top of your public profile.">
               <MediaUploadField
                 kind="image"
@@ -612,6 +637,9 @@ function TutorProfileForm() {
           selected={form.subjects}
           onToggle={(v) => toggleIn('subjects', v)}
         />
+        <Separator className="my-5" />
+        <SectionTitle icon={BookOpen} title="Courses" hint="Add a course code + title; add as many as you like" />
+        <CoursesEditor courses={form.courses} onChange={(c) => set('courses', c)} />
         <Separator className="my-5" />
         <SectionTitle icon={GraduationCap} title="Grade levels" />
         <ChipGroup

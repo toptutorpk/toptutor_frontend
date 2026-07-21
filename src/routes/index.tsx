@@ -25,6 +25,7 @@ const SignupChoicePage = lazy(() => import('@/pages/auth/SignupChoicePage'));
 const StudentSignupPage = lazy(() => import('@/pages/auth/StudentSignupPage'));
 const TutorSignupPage = lazy(() => import('@/pages/auth/TutorSignupPage'));
 const TutorProfileCreatePage = lazy(() => import('@/pages/auth/TutorProfileCreatePage'));
+const BookingCallback = lazy(() => import('@/pages/BookingCallback'));
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'));
 const OtpVerificationPage = lazy(() => import('@/pages/auth/OtpVerificationPage'));
@@ -44,6 +45,8 @@ const ProfileSettings = lazy(() => import('@/pages/dashboard/ProfileSettings'));
 const TutorAnalytics = lazy(() => import('@/pages/dashboard/tutor/Analytics'));
 const TutorEarnings = lazy(() => import('@/pages/dashboard/tutor/Earnings'));
 const TutorSchedule = lazy(() => import('@/pages/dashboard/tutor/Schedule'));
+const TutorSessions = lazy(() => import('@/pages/dashboard/tutor/Sessions'));
+const TutorReviews = lazy(() => import('@/pages/dashboard/tutor/Reviews'));
 const TutorVerification = lazy(() => import('@/pages/dashboard/tutor/Verification'));
 const TutorPlaceholder = lazy(() => import('@/pages/dashboard/tutor/TutorPlaceholder'));
 
@@ -124,9 +127,9 @@ export const router = createBrowserRouter([
           { index: true, element: <S><TutorAnalytics /></S> },
           { path: 'earnings', element: <S><TutorEarnings /></S> },
           { path: 'schedule', element: <S><TutorSchedule /></S> },
-          { path: 'sessions', element: <S><TutorPlaceholder title="Sessions" /></S> },
+          { path: 'sessions', element: <S><TutorSessions /></S> },
           { path: 'students', element: <S><TutorPlaceholder title="My Students" /></S> },
-          { path: 'reviews', element: <S><TutorPlaceholder title="Reviews" /></S> },
+          { path: 'reviews', element: <S><TutorReviews /></S> },
           { path: 'messages', element: <S><MessagesPage /></S> },
           { path: 'verification', element: <S><TutorVerification /></S> },
           { path: 'profile', element: <S><ProfileSettings /></S> },
@@ -160,6 +163,8 @@ export const router = createBrowserRouter([
 
   // Tutor onboarding — self-contained full-screen wizard (own layout)
   { path: '/signup/tutor/profile', element: <S><TutorProfileCreatePage /></S> },
+  // Payment return from Safepay checkout
+  { path: '/booking/callback', element: <S><BookingCallback /></S> },
   { path: '/dashboard', element: <Navigate to="/dashboard/student" replace /> },
   { path: '*', element: <S><NotFoundPage /></S> },
 ]);

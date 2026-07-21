@@ -61,6 +61,12 @@ export interface Credential {
   year: string;
 }
 
+/** A course a tutor offers — matches the backend `Course` record. */
+export interface Course {
+  abbreviation: string;
+  title: string;
+}
+
 /** Full tutor profile shape shared by the create-profile request and the profile in TutorResponse. */
 export interface TutorProfilePayload {
   firstName: string;
@@ -83,6 +89,7 @@ export interface TutorProfilePayload {
   modes?: string[];
   education?: Credential[];
   certifications?: Credential[];
+  courses?: Course[];
 }
 
 interface TutorResponse {
@@ -115,6 +122,18 @@ export interface AuthResult {
   user: User;
 }
 
+/** Login either completes (tokens + user) or asks for a two-factor code (challengeId). */
+export type LoginOutcome =
+  | { twoFactorRequired: true; challengeId: string }
+  | ({ twoFactorRequired: false } & AuthResult);
+
+/** Shape of the backend LoginResponse. */
+interface LoginResponseDto {
+  twoFactorRequired: boolean;
+  challengeId?: string;
+  tokens?: TokenResponse;
+}
+
 export interface TutorRegisterPayload {
   firstName?: string;
   lastName?: string;
@@ -143,6 +162,7 @@ export interface CreateTutorProfilePayload {
   modes?: string[];
   education?: Credential[];
   certifications?: Credential[];
+  courses?: Course[];
 }
 
 /** Maps a backend TutorResponse to the frontend User shape. */
@@ -170,6 +190,7 @@ interface AccountMe {
   status: string;
   name?: string;
   city?: string;
+  photoUrl?: string;
 }
 
 const ROLE_MAP: Record<AccountMe['role'], UserRole> = {
@@ -187,6 +208,7 @@ function accountMeToUser(m: AccountMe): User {
     phone: m.phone,
     role: ROLE_MAP[m.role],
     city: (m.city as City | undefined) ?? undefined,
+    avatarUrl: m.photoUrl,
     createdAt: new Date().toISOString(),
   };
 }
@@ -301,9 +323,23 @@ export const authService = {
 
   // ===== Login / logout (real backend) =======================================
 
-  /** Email + password login → stores access & refresh tokens, returns the user. */
-  async login(payload: LoginPayload): Promise<AuthResult> {
-    const tokens = await http.post<TokenResponse>('/auth/login', payload);
+  /**
+   * Email + password login. Completes with tokens + user, or — when the account has 2FA enabled —
+   * returns `{ twoFactorRequired: true, challengeId }` so the caller can collect the emailed code.
+   */
+  async login(payload: LoginPayload): Promise<LoginOutcome> {
+    const res = await http.post<LoginResponseDto>('/auth/login', payload);
+    if (res.twoFactorRequired || !res.tokens) {
+      return { twoFactorRequired: true, challengeId: res.challengeId ?? '' };
+    }
+    setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+    const user = await this.getMe();
+    return { twoFactorRequired: false, token: res.tokens.accessToken, user };
+  },
+
+  /** Completes a two-factor login with the emailed code → stores tokens and returns the user. */
+  async verifyTwoFactor(challengeId: string, code: string): Promise<AuthResult> {
+    const tokens = await http.post<TokenResponse>('/auth/2fa/verify', { challengeId, code });
     setTokens(tokens.accessToken, tokens.refreshToken);
     const user = await this.getMe();
     return { token: tokens.accessToken, user };

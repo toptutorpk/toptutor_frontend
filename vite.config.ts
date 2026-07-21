@@ -14,6 +14,22 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    // Allow ngrok tunnel hosts (covers *.ngrok-free.dev / *.ngrok-free.app / *.ngrok.io)
+    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app', '.ngrok.io'],
+    // Same-origin proxy to the backend. The browser only ever talks to the
+    // page origin (localhost or the tunnel), so there is no CORS and no
+    // https→http mixed-content block, and it works from any device.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   build: {
     target: 'es2020',

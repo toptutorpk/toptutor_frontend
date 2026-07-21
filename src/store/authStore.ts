@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authService } from '@/services/authService';
 import type { User } from '@/types';
-import type { GoogleAuthResult, LoginPayload, SignupPayload } from '@/services/authService';
+import type { GoogleAuthResult, LoginOutcome, LoginPayload, SignupPayload } from '@/services/authService';
 
 /**
  * In-memory draft threaded from tutor signup → OTP verify → profile creation. Held only for the
@@ -23,7 +23,8 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   onboarding: TutorOnboardingDraft | null;
-  login: (payload: LoginPayload) => Promise<User>;
+  login: (payload: LoginPayload) => Promise<LoginOutcome>;
+  verifyTwoFactor: (challengeId: string, code: string) => Promise<User>;
   signup: (payload: SignupPayload) => Promise<User>;
   loginWithGoogle: (idToken: string) => Promise<GoogleAuthResult>;
   setSession: (user: User, token: string) => void;
@@ -43,7 +44,23 @@ export const useAuthStore = create<AuthState>()(
       async login(payload) {
         set({ isLoading: true });
         try {
-          const { user, token } = await authService.login(payload);
+          const result = await authService.login(payload);
+          // 2FA: don't establish a session yet — the caller collects the emailed code.
+          if (result.twoFactorRequired) {
+            set({ isLoading: false });
+            return result;
+          }
+          set({ user: result.user, token: result.token, isAuthenticated: true, isLoading: false });
+          return result;
+        } catch (e) {
+          set({ isLoading: false });
+          throw e;
+        }
+      },
+      async verifyTwoFactor(challengeId, code) {
+        set({ isLoading: true });
+        try {
+          const { user, token } = await authService.verifyTwoFactor(challengeId, code);
           set({ user, token, isAuthenticated: true, isLoading: false });
           return user;
         } catch (e) {

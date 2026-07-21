@@ -17,7 +17,12 @@ import { env } from '@/config/env';
 export const apiClient: AxiosInstance = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: 20000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    // ngrok free tier otherwise returns an HTML "browser warning" page instead
+    // of the JSON body; this header tells ngrok to skip it. Harmless off-ngrok.
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 /** The envelope every backend endpoint returns. */
@@ -116,7 +121,7 @@ async function refreshAccessToken(): Promise<string | null> {
     const res = await axios.post<ApiEnvelope<{ accessToken: string; refreshToken: string }>>(
       `${env.apiBaseUrl}/auth/refresh`,
       { refreshToken },
-      { headers: { 'Content-Type': 'application/json' } },
+      { headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' } },
     );
     const tokens = res.data.data;
     setTokens(tokens.accessToken, tokens.refreshToken);

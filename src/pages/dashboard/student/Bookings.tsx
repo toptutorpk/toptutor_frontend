@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Video, Home, Building2 } from 'lucide-react';
+import { Video, Home, Building2, Receipt } from 'lucide-react';
+import { toast } from '@/components/ui/sonner';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -9,27 +10,46 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/common/StateViews';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/api/queryKeys';
-import { contentService } from '@/services/contentService';
+import { bookingService, type BookingSummary } from '@/services/bookingService';
 import { formatPKR, getInitials } from '@/lib/utils';
-import type { Booking, SessionMode } from '@/types';
 
-const MODE_ICON: Record<SessionMode, typeof Video> = { online: Video, home_visit: Home, institute: Building2 };
+// Backend slot mode (ONLINE/HOME/DEMO) → an icon. Falls back to the online icon.
+const MODE_ICON = (mode: string | null) => {
+  switch (mode) {
+    case 'HOME':
+      return Home;
+    case 'DEMO':
+      return Building2;
+    default:
+      return Video; // ONLINE / null
+  }
+};
 
-const STATUS_VARIANT = {
+// Derived backend status (UPCOMING/COMPLETED/CANCELLED) → badge variant + tab key.
+const STATUS_VARIANT: Record<string, 'info' | 'success' | 'destructive' | 'warning'> = {
   upcoming: 'info',
   completed: 'success',
   cancelled: 'destructive',
-  pending: 'warning',
-} as const;
+};
+
+/** Minutes between two 'HH:MM' times. */
+function durationMins(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
 
 export default function StudentBookings() {
-  const { data: bookings = [] } = useQuery({ queryKey: queryKeys.bookings.all, queryFn: contentService.bookings });
+  const { data: bookings = [] } = useQuery({
+    queryKey: queryKeys.bookings.all,
+    queryFn: bookingService.list,
+  });
   const [tab, setTab] = useState('upcoming');
 
-  const groups: Record<string, Booking[]> = {
-    upcoming: bookings.filter((b) => b.status === 'upcoming'),
-    completed: bookings.filter((b) => b.status === 'completed'),
-    cancelled: bookings.filter((b) => b.status === 'cancelled'),
+  const groups: Record<string, BookingSummary[]> = {
+    upcoming: bookings.filter((b) => b.status === 'UPCOMING'),
+    completed: bookings.filter((b) => b.status === 'COMPLETED'),
+    cancelled: bookings.filter((b) => b.status === 'CANCELLED'),
   };
 
   return (
@@ -49,36 +69,53 @@ export default function StudentBookings() {
             ) : (
               <div className="space-y-3">
                 {list.map((b) => {
-                  const I = MODE_ICON[b.mode];
+                  const I = MODE_ICON(b.mode);
+                  const statusKey = b.status.toLowerCase();
                   return (
                     <div
                       key={b.id}
                       className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-soft sm:flex-row sm:items-center"
                     >
                       <Avatar className="h-14 w-14">
-                        <AvatarImage src={b.tutorAvatar} alt={b.tutorName} />
-                        <AvatarFallback>{getInitials(b.tutorName)}</AvatarFallback>
+                        <AvatarImage src={b.tutorAvatar ?? undefined} alt={b.tutorName} />
+                        <AvatarFallback>{getInitials(b.tutorName || 'Tutor')}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">{b.tutorName}</span>
-                          {b.isTrial && <Badge variant="gold">Trial</Badge>}
+                          <span className="font-semibold">{b.tutorName || 'Tutor'}</span>
+                          {b.bookingType === 'INTRO' && <Badge variant="gold">Trial</Badge>}
                         </div>
-                        <div className="text-sm text-muted-foreground">{b.subject}</div>
+                        {/* Subject is not yet modelled on a booking — decision pending. */}
+                        {/* <div className="text-sm text-muted-foreground">{b.subject}</div> */}
                       </div>
                       <div className="text-sm">
-                        <div className="font-medium">{format(new Date(b.date), 'EEE, MMM d')}</div>
+                        <div className="font-medium">{format(new Date(`${b.sessionDate}T00:00:00`), 'EEE, MMM d')}</div>
                         <div className="text-muted-foreground">
-                          {b.time} · {b.durationMins} min
+                          {b.startTime}–{b.endTime} · {durationMins(b.startTime, b.endTime)} min
                         </div>
                       </div>
-                      <Badge variant={STATUS_VARIANT[b.status]} className="gap-1 capitalize">
-                        <I className="h-3 w-3" /> {b.status}
+                      <Badge variant={STATUS_VARIANT[statusKey] ?? 'info'} className="gap-1 capitalize">
+                        <I className="h-3 w-3" /> {statusKey}
                       </Badge>
-                      <div className="font-display font-bold">{formatPKR(b.amount)}</div>
+                      <div className="font-display font-bold">{b.amount != null ? formatPKR(b.amount) : '—'}</div>
                       <div className="flex gap-2">
-                        {b.status === 'upcoming' && <Button size="sm" variant="gradient">Join</Button>}
-                        {b.status === 'completed' && <Button size="sm" variant="outline">Review</Button>}
+                        {b.status === 'UPCOMING' && b.canMessage && (
+                          <Button size="sm" variant="gradient">Join</Button>
+                        )}
+                        {b.status === 'COMPLETED' && <Button size="sm" variant="outline">Review</Button>}
+                        {b.paymentStatus === 'PAID' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              bookingService
+                                .openReceipt(b.id)
+                                .catch(() => toast.error('Could not open receipt'))
+                            }
+                          >
+                            <Receipt className="h-3.5 w-3.5" /> Receipt
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
