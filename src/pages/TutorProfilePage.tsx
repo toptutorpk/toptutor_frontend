@@ -23,6 +23,7 @@ import type { Tutor } from '@/types';
 import { useBookIntro } from '@/hooks/useBookIntro';
 import { useAuthStore } from '@/store/authStore';
 import { availabilityService, formatRange } from '@/services/availabilityService';
+import { bookingService } from '@/services/bookingService';
 import { queryKeys } from '@/api/queryKeys';
 import { toast } from '@/components/ui/sonner';
 import { ApiError } from '@/api/client';
@@ -440,28 +441,51 @@ function AvailabilityStrip({
   const hasOnline = slots.some((s) => s.mode === 'ONLINE');
   const hasHome = slots.some((s) => s.mode === 'HOME');
 
+  // Home-visit slots have no online payment — they are reserved directly (arranged with the tutor).
   const book = useMutation({
     mutationFn: (slotId: number) => availabilityService.bookSlot(slotId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.tutors.detail(tutor.slug) });
-      toast.success('Slot booked', { description: 'This slot is now reserved.' });
+      toast.success('Home visit slot reserved', { description: 'The tutor will confirm the details with you.' });
     },
     onError: (e) =>
-      toast.error('Could not book', {
+      toast.error('Could not reserve', {
         description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
       }),
   });
 
-  const onBook = (slotId: number) => {
+  // Online slots go through the paid booking flow (Safepay) — never reserved for free.
+  const [payingSlot, setPayingSlot] = useState<number | null>(null);
+
+  const requireLearner = () => {
     if (!user) {
       navigate('/login', { state: { from: `/tutors/${tutor.slug}` } });
-      return;
+      return false;
     }
     if (user.role !== 'student' && user.role !== 'parent') {
       toast.info('Use a student or parent account to book.');
+      return false;
+    }
+    return true;
+  };
+
+  const onBook = async (slot: { id: number; mode: 'ONLINE' | 'HOME' }) => {
+    if (!requireLearner()) return;
+    if (slot.mode === 'HOME') {
+      book.mutate(slot.id);
       return;
     }
-    book.mutate(slotId);
+    // Online → create a paid session and redirect to Safepay's hosted checkout.
+    setPayingSlot(slot.id);
+    try {
+      const res = await bookingService.createSession(Number(tutor.id), slot.id, 'single');
+      window.location.href = res.checkoutUrl;
+    } catch (e) {
+      toast.error('Could not start payment', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+      setPayingSlot(null);
+    }
   };
 
   if (slots.length === 0) return null;
@@ -518,12 +542,17 @@ function AvailabilityStrip({
           ) : (
             <button
               key={s.id}
-              disabled={book.isPending}
-              onClick={() => onBook(s.id)}
-              title="Book this slot"
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
+              disabled={book.isPending || payingSlot != null}
+              onClick={() => onBook(s)}
+              title={s.mode === 'HOME' ? 'Reserve this home-visit slot' : 'Book & pay for this slot'}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
             >
-              <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
+              {payingSlot === s.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Clock className="h-3.5 w-3.5" />
+              )}
+              {formatRange(s.start, s.end)}
             </button>
           ),
         )}

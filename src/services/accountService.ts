@@ -11,6 +11,7 @@ export interface AccountMe {
   city?: string;
   photoUrl?: string;
   twoFactorEnabled: boolean;
+  hasPassword: boolean;
 }
 
 export const accountService = {
@@ -20,6 +21,9 @@ export const accountService = {
   setTwoFactor: (enabled: boolean) => http.post<void>('/accounts/2fa', { enabled }),
   /** Sets the profile photo to an already-uploaded (cropped) image URL. */
   updatePhoto: (photoUrl: string) => http.post<void>('/accounts/me/photo', { photoUrl }),
-  /** Permanently delete (anonymise + deactivate) the signed-in account. */
-  deleteAccount: () => http.del<void>('/accounts/me'),
+  /** Changes the account password (verifies the current one server-side). */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    http.post<void>('/accounts/me/password', { currentPassword, newPassword }),
+  /** Permanently delete (anonymise + deactivate) the signed-in account after password confirmation. */
+  deleteAccount: (password: string) => http.del<void>('/accounts/me', { data: { password } }),
 };

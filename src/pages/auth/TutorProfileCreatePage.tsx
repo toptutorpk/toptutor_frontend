@@ -272,23 +272,35 @@ export default function TutorProfileCreatePage() {
           {step === 0 && (
             <div className="space-y-5">
               <SectionTitle icon={User} title="About you" />
-              <Field label="Professional headline" hint="A short tagline shown under your name.">
+              <Field
+                label="Professional headline"
+                hint="A short tagline shown under your name."
+                required
+                counter={`${form.headline.length}/100`}
+              >
                 <Input
                   value={form.headline}
                   onChange={(e) => set('headline', e.target.value)}
                   placeholder="O/A-Levels Math & Physics specialist"
+                  maxLength={100}
                 />
               </Field>
-              <Field label="About me" hint="Tell students about your teaching style and experience.">
+              <Field
+                label="About me"
+                hint="Tell students about your teaching style and experience."
+                required
+                counter={`${form.bio.length}/1500`}
+              >
                 <Textarea
                   value={form.bio}
                   onChange={(e) => set('bio', e.target.value)}
                   placeholder="I’ve helped 200+ students improve their grades through…"
                   className="min-h-[120px]"
+                  maxLength={1500}
                 />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="City" icon={MapPin}>
+                <Field label="City" icon={MapPin} required>
                   <Select value={form.city} onValueChange={(v) => set('city', v as City)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select city" />
@@ -463,7 +475,7 @@ export default function TutorProfileCreatePage() {
                     placeholder="2000"
                   />
                 </Field>
-                <Field label="Monthly package (PKR)" hint="Optional — for recurring students.">
+                <Field label="Expected Monthly package (PKR)" hint="Optional — your starting monthly rate for recurring students.">
                   <Input
                     type="number"
                     min={0}

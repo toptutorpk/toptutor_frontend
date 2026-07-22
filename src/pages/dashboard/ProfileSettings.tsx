@@ -119,34 +119,115 @@ export default function ProfileSettings() {
 
         <TabsContent value="security">
           <div className="space-y-6">
-            <div className="rounded-2xl border bg-card p-6 shadow-soft">
-              <h3 className="flex items-center gap-2 font-display font-bold">
-                <Lock className="h-4 w-4" /> Change password
-              </h3>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Current password</Label>
-                  <Input type="password" placeholder="••••••••" />
-                </div>
-                <div />
-                <div className="space-y-1.5">
-                  <Label>New password</Label>
-                  <Input type="password" placeholder="••••••••" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Confirm password</Label>
-                  <Input type="password" placeholder="••••••••" />
-                </div>
-              </div>
-              <Button variant="gradient" className="mt-4" onClick={() => toast.success('Password updated')}>
-                Update password
-              </Button>
-            </div>
-
+            <ChangePasswordCard />
             <SecuritySettings />
           </div>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Change password (all roles with a password)                               */
+/* -------------------------------------------------------------------------- */
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => setError(null);
+
+  const submit = async () => {
+    if (!current || !next || !confirm) {
+      setError('Please fill in all three fields.');
+      return;
+    }
+    if (next.length < 8) {
+      setError('Your new password must be at least 8 characters.');
+      return;
+    }
+    if (next !== confirm) {
+      setError('The new passwords don’t match.');
+      return;
+    }
+    if (next === current) {
+      setError('Your new password must be different from the current one.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await accountService.changePassword(current, next);
+      toast.success('Password changed', { description: 'Use your new password next time you log in.' });
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch (e) {
+      // e.g. "Current password is incorrect" from the server.
+      setError(e instanceof ApiError || e instanceof Error ? e.message : 'Could not change your password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border bg-card p-6 shadow-soft">
+      <h3 className="flex items-center gap-2 font-display font-bold">
+        <Lock className="h-4 w-4" /> Change password
+      </h3>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2 sm:max-w-sm">
+          <Label htmlFor="cur-pw">Current password</Label>
+          <Input
+            id="cur-pw"
+            type="password"
+            autoComplete="off"
+            placeholder="Enter your current password"
+            value={current}
+            onChange={(e) => {
+              setCurrent(e.target.value);
+              clearError();
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="new-pw">New password</Label>
+          <Input
+            id="new-pw"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Choose a new password"
+            value={next}
+            onChange={(e) => {
+              setNext(e.target.value);
+              clearError();
+            }}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="conf-pw">Confirm new password</Label>
+          <Input
+            id="conf-pw"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Re-enter your new password"
+            value={confirm}
+            onChange={(e) => {
+              setConfirm(e.target.value);
+              clearError();
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+          />
+        </div>
+      </div>
+      {error && <p className="mt-3 text-sm font-medium text-red-500">{error}</p>}
+      <Button variant="gradient" className="mt-4" disabled={saving} onClick={submit}>
+        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+        Update password
+      </Button>
     </div>
   );
 }
@@ -162,12 +243,19 @@ function SecuritySettings() {
   const [savingTfa, setSavingTfa] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [hasPassword, setHasPassword] = useState(true); // assume until /me confirms
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     accountService
       .me()
-      .then((m) => !cancelled && setTwoFactor(m.twoFactorEnabled))
+      .then((m) => {
+        if (cancelled) return;
+        setTwoFactor(m.twoFactorEnabled);
+        setHasPassword(m.hasPassword);
+      })
       .catch(() => !cancelled && setTwoFactor(false));
     return () => {
       cancelled = true;
@@ -192,17 +280,29 @@ function SecuritySettings() {
   };
 
   const confirmDelete = async () => {
+    if (hasPassword && !deletePassword) {
+      setDeleteError('Enter your password to confirm.');
+      return;
+    }
     setDeleting(true);
+    setDeleteError(null);
     try {
-      await accountService.deleteAccount();
+      await accountService.deleteAccount(deletePassword);
       toast.success('Your account has been deleted');
       logout();
       navigate('/', { replace: true });
     } catch (e) {
-      toast.error('Could not delete account', {
-        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
-      });
+      // Surface "Incorrect password" (and anything else) inline so the dialog stays open.
+      setDeleteError(e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.');
       setDeleting(false);
+    }
+  };
+
+  const closeConfirm = (open: boolean) => {
+    setConfirmOpen(open);
+    if (!open) {
+      setDeletePassword('');
+      setDeleteError(null);
     }
   };
 
@@ -235,7 +335,7 @@ function SecuritySettings() {
         </Button>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog open={confirmOpen} onOpenChange={closeConfirm}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete your account?</DialogTitle>
@@ -245,11 +345,40 @@ function SecuritySettings() {
               records but are no longer linked to you. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {hasPassword && (
+            <div className="space-y-2 rounded-xl border bg-secondary/30 p-4">
+              <Label htmlFor="delete-password" className="text-sm font-medium">
+                Enter your password to confirm
+              </Label>
+              <Input
+                id="delete-password"
+                type="password"
+                autoFocus
+                placeholder="••••••••"
+                value={deletePassword}
+                onChange={(e) => {
+                  setDeletePassword(e.target.value);
+                  setDeleteError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && confirmDelete()}
+                aria-invalid={!!deleteError}
+                className="mt-1"
+              />
+              {deleteError && <p className="pt-0.5 text-xs font-medium text-red-500">{deleteError}</p>}
+            </div>
+          )}
+          {!hasPassword && deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+            <Button variant="outline" onClick={() => closeConfirm(false)} disabled={deleting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting || (hasPassword && !deletePassword)}
+            >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Yes, delete my account
             </Button>
@@ -512,7 +641,7 @@ function TutorProfileForm() {
         <ProfileHeader url={form.avatarUrl || undefined} onChange={(u) => set('avatarUrl', u)} />
         <Separator className="my-6" />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name" icon={User} error={errors.name}>
+          <Field label="Full name" icon={User} error={errors.name} required>
             <Input
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
@@ -539,7 +668,7 @@ function TutorProfileForm() {
               placeholder="5"
             />
           </Field>
-          <Field label="City" icon={MapPin} error={errors.city}>
+          <Field label="City" icon={MapPin} error={errors.city} required>
             <Select value={form.city} onValueChange={(v) => set('city', v as City)}>
               <SelectTrigger aria-invalid={!!errors.city} className={cn(errors.city && 'border-red-500 ring-1 ring-red-500')}>
                 <SelectValue placeholder="Select city" />
@@ -606,22 +735,26 @@ function TutorProfileForm() {
               label="Professional headline"
               hint="A short tagline shown under your name."
               error={errors.headline}
+              required
+              counter={`${form.headline.length}/100`}
             >
               <Input
                 value={form.headline}
                 onChange={(e) => set('headline', e.target.value)}
                 placeholder="O/A-Levels Math & Physics specialist"
+                maxLength={100}
                 aria-invalid={!!errors.headline}
               />
             </Field>
           </div>
           <div className="sm:col-span-2">
-            <Field label="About me" error={errors.bio}>
+            <Field label="About me" error={errors.bio} required counter={`${form.bio.length}/1500`}>
               <Textarea
                 value={form.bio}
                 onChange={(e) => set('bio', e.target.value)}
                 placeholder="Tell students about your teaching style and experience…"
                 className="min-h-[120px]"
+                maxLength={1500}
                 aria-invalid={!!errors.bio}
               />
             </Field>
@@ -703,7 +836,7 @@ function TutorProfileForm() {
               aria-invalid={!!errors.hourlyRate}
             />
           </Field>
-          <Field label="Monthly package (PKR)" hint="Optional — for recurring students.">
+          <Field label="Expected Monthly package (PKR)" hint="Optional — your starting monthly rate for recurring students.">
             <Input
               type="number"
               min={0}

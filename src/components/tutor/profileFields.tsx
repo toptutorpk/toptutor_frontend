@@ -37,20 +37,34 @@ export function Field({
   icon: Icon,
   hint,
   error,
+  required,
+  counter,
   children,
 }: {
   label: string;
   icon?: LucideIcon;
   hint?: string;
   error?: string;
+  /** Adds a red asterisk after the label. */
+  required?: boolean;
+  /** Right-aligned character counter, e.g. "45/100". */
+  counter?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="flex items-center gap-1.5">
-        {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
-        {label}
-      </Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label className="flex items-center gap-1.5">
+          {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+          {label}
+          {required && (
+            <span className="text-red-500" aria-hidden="true" title="Required">
+              *
+            </span>
+          )}
+        </Label>
+        {counter && <span className="text-[11px] tabular-nums text-muted-foreground">{counter}</span>}
+      </div>
       {children}
       {error ? (
         <p className="text-xs text-red-500">{error}</p>
