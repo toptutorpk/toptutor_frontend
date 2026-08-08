@@ -196,6 +196,13 @@ export default function LoginPage() {
         </Link>{' '}
         — no password needed.
       </div>
+
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        Trouble signing in?{' '}
+        <Link to="/contact" className="font-semibold text-primary hover:underline">
+          Contact support
+        </Link>
+      </p>
     </div>
   );
 }

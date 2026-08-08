@@ -6,6 +6,8 @@ interface SectionHeadingProps {
   title: React.ReactNode;
   description?: React.ReactNode;
   align?: 'left' | 'center';
+  /** `dark` inverts the text for navy bands, where muted-foreground is unreadable. */
+  tone?: 'default' | 'dark';
   className?: string;
 }
 
@@ -14,8 +16,10 @@ export function SectionHeading({
   title,
   description,
   align = 'center',
+  tone = 'default',
   className,
 }: SectionHeadingProps) {
+  const dark = tone === 'dark';
   return (
     <Reveal
       className={cn(
@@ -25,7 +29,14 @@ export function SectionHeading({
       )}
     >
       {eyebrow && (
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-bold uppercase tracking-wider',
+            dark
+              ? 'bg-white/10 text-brand-200'
+              : 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400',
+          )}
+        >
           {eyebrow}
         </span>
       )}
@@ -33,7 +44,12 @@ export function SectionHeading({
         {title}
       </h2>
       {description && (
-        <p className="text-base leading-relaxed text-muted-foreground sm:text-lg text-pretty">
+        <p
+          className={cn(
+            'text-base leading-relaxed sm:text-lg text-pretty',
+            dark ? 'text-brand-100/80' : 'text-muted-foreground',
+          )}
+        >
           {description}
         </p>
       )}

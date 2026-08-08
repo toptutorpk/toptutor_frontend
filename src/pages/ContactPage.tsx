@@ -21,6 +21,7 @@ import { Container } from '@/components/common/Container';
 import { Section } from '@/components/common/Section';
 import { Reveal } from '@/components/animations/Reveal';
 import { LottieAnimation } from '@/components/animations/LottieAnimation';
+import { ArcLights } from '@/components/animations/ArcLights';
 import { ContactIllustration } from '@/components/animations/illustrations/ContactIllustration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -155,11 +156,10 @@ export default function ContactPage() {
 
 function ContactHero() {
   return (
-    <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-28">
+    <section className="relative overflow-hidden border-b bg-brand-25 pt-16 pb-20 dark:bg-secondary/30 lg:pt-24 lg:pb-28">
+      {/* Arc network — the light-on-rails motif used across the marketing pages. */}
       <div className="absolute inset-0 -z-10">
-        <div className="bg-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
-        <div className="absolute -top-28 left-1/4 h-96 w-96 rounded-full bg-brand-200/40 blur-3xl" />
-        <div className="absolute top-16 right-8 h-72 w-72 rounded-full bg-gold-300/20 blur-3xl" />
+        <ArcLights />
       </div>
 
       <Container className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
@@ -239,7 +239,7 @@ function ContactMethods() {
                   'flex h-12 w-12 items-center justify-center rounded-[var(--radius-btn)] transition-colors',
                   method.urgent
                     ? 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400'
-                    : 'bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-250',
+                    : 'bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300',
                 )}
               >
                 <method.icon className="h-6 w-6" />
@@ -248,7 +248,7 @@ function ContactMethods() {
               <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
                 {method.description}
               </p>
-              <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-250">
+              <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-300">
                 {method.action}
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </span>
@@ -520,7 +520,7 @@ function ContactFormSection() {
               />
               <span className="leading-relaxed text-muted-foreground">
                 I agree that TopTutor may contact me about my enquiry and I accept the{' '}
-                <Link to="/privacy" className="font-medium text-brand-600 underline underline-offset-4 dark:text-brand-250">
+                <Link to="/privacy" className="font-medium text-brand-600 underline underline-offset-4 dark:text-brand-300">
                   privacy policy
                 </Link>
                 . <span className="text-brand-600">*</span>
@@ -606,7 +606,7 @@ function OfficeAndNewsletter() {
             <h3 className="heading-3 mt-3">Come say hello</h3>
             <ul className="mt-8 space-y-6 text-sm">
               <li className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-250">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                   <MapPin className="h-5 w-5" />
                 </span>
                 <div>
@@ -621,7 +621,7 @@ function OfficeAndNewsletter() {
                 </div>
               </li>
               <li className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-250">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                   <Phone className="h-5 w-5" />
                 </span>
                 <div>
@@ -635,7 +635,7 @@ function OfficeAndNewsletter() {
                 </div>
               </li>
               <li className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-250">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-btn)] bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                   <Mail className="h-5 w-5" />
                 </span>
                 <div>
@@ -685,8 +685,12 @@ function OfficeAndNewsletter() {
 
 function ContactCta() {
   return (
-    <Section tone="dark" align="center">
-      <Reveal className="mx-auto max-w-3xl text-center">
+    <Section tone="dark" align="center" className="relative overflow-hidden">
+      {/* Same motif as the hero, brightened — it bookends the page. */}
+      <div className="absolute inset-0">
+        <ArcLights tone="dark" />
+      </div>
+      <Reveal className="relative mx-auto max-w-3xl text-center">
         <h2 className="heading-2">Ready to start learning?</h2>
         <p className="mt-5 text-lg leading-relaxed text-brand-100/80">
           Browse verified tutors in your city and book a demo session — you only pay once the

@@ -18,6 +18,7 @@ import {
   Home,
   Star,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 import type { Tutor } from '@/types';
 import { useBookIntro } from '@/hooks/useBookIntro';

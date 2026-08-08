@@ -39,7 +39,7 @@ export const FOOTER_NAV: { title: string; links: NavItem[] }[] = [
       { label: 'About Us', to: '/about' },
       { label: 'Blog', to: '/blog' },
       { label: 'Careers', to: '/careers' },
-      { label: 'Contact', to: '/contact' },
+      { label: 'Contact Us', to: '/contact' },
     ],
   },
   {

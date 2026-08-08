@@ -16,6 +16,7 @@ const SubjectsPage = lazy(() => import('@/pages/SubjectsPage'));
 const HowItWorksPage = lazy(() => import('@/pages/HowItWorksPage'));
 const PricingPage = lazy(() => import('@/pages/PricingPage'));
 const InstitutesPage = lazy(() => import('@/pages/InstitutesPage'));
+const ContactPage = lazy(() => import('@/pages/ContactPage'));
 const SimplePage = lazy(() => import('@/pages/SimplePage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
@@ -82,7 +83,7 @@ export const router = createBrowserRouter([
       { path: '/about', element: <S><SimplePage title="About TopTutor" /></S> },
       { path: '/blog', element: <S><SimplePage title="Blog" /></S> },
       { path: '/careers', element: <S><SimplePage title="Careers" /></S> },
-      { path: '/contact', element: <S><SimplePage title="Contact Us" /></S> },
+      { path: '/contact', element: <S><ContactPage /></S> },
       { path: '/child-safety', element: <S><SimplePage title="Child Safety" /></S> },
       { path: '/privacy', element: <S><SimplePage title="Privacy Policy" /></S> },
       { path: '/terms', element: <S><SimplePage title="Terms of Service" /></S> },
