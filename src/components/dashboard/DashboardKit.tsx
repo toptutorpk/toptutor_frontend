@@ -49,7 +49,7 @@ export function StatCard({ icon, label, value, delta, trend = 'up', accent = 'br
         {delta && (
           <span
             className={cn(
-              'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold',
+              'inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-semibold',
               trend === 'up'
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
                 : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',

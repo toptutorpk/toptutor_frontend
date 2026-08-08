@@ -29,7 +29,7 @@ export default function SubjectsPage() {
               key={c}
               onClick={() => setCategory(c)}
               className={cn(
-                'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                'rounded-md border px-4 py-1.5 text-sm font-medium transition-colors',
                 category === c
                   ? 'border-brand-500 bg-brand-600 text-white'
                   : 'hover:bg-secondary',

@@ -45,7 +45,7 @@ export function VerificationBadge({ status, size = 'md', withDot, className }: P
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border font-semibold',
+        'inline-flex items-center gap-1.5 rounded-md border font-semibold',
         size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
         cfg.classes,
         className,

@@ -85,7 +85,7 @@ export function Navbar() {
           {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full border bg-background p-1 pr-3 transition-colors hover:bg-secondary">
+                <button className="flex items-center gap-2 rounded-md border bg-background p-1 pr-3 transition-colors hover:bg-secondary">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user.avatarUrl} alt={user.name} />
                     <AvatarFallback>{getInitials(user.name)}</AvatarFallback>

@@ -65,7 +65,7 @@ export default function AdminSettings() {
         <Panel title="Launch cities" subtitle="Where tutors can currently list">
           <div className="flex flex-wrap gap-2 p-5">
             {['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta'].map((c) => (
-              <span key={c} className="rounded-full border bg-secondary/40 px-3 py-1 text-sm">
+              <span key={c} className="rounded-md border bg-secondary/40 px-3 py-1 text-sm">
                 {c}
               </span>
             ))}

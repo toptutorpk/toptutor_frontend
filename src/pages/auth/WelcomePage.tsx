@@ -13,7 +13,7 @@ export default function WelcomePage() {
         initial={{ scale: 0, rotate: -20 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ type: 'spring', stiffness: 180, damping: 12 }}
-        className="mx-auto flex h-24 w-24 items-center justify-center rounded-[2rem] bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-glow"
+        className="mx-auto flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-glow"
       >
         <PartyPopper className="h-12 w-12" />
       </motion.div>

@@ -179,7 +179,7 @@ export default function MessagesPage() {
                 </p>
               </div>
               {c.unread > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-bold text-white">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-md bg-brand-600 px-1 text-xs font-bold text-white">
                   {c.unread}
                 </span>
               )}
@@ -199,7 +199,7 @@ export default function MessagesPage() {
             <div className="flex items-center gap-2 font-semibold">
               {active?.participantName}
               {active?.participantRole === 'TUTOR' && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
                   <ShieldCheck className="h-3 w-3" /> Verified
                 </span>
               )}
@@ -219,7 +219,7 @@ export default function MessagesPage() {
         </div>
 
         <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-secondary/20 p-4">
-          <div className="mx-auto w-fit rounded-full bg-secondary px-3 py-1 text-center text-xs text-muted-foreground">
+          <div className="mx-auto w-fit rounded-md bg-secondary px-3 py-1 text-center text-xs text-muted-foreground">
             🔒 Keep chatting here. Phone numbers, emails & links are hidden to protect you both.
           </div>
           {thread.map((m) => (

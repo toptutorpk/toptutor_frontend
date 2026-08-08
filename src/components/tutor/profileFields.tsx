@@ -94,7 +94,7 @@ export function ChipGroup({
             type="button"
             onClick={() => onToggle(o)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
               active
                 ? 'border-brand-500 bg-brand-500 text-white'
                 : 'border-input bg-background text-foreground/80 hover:border-brand-300',
@@ -238,7 +238,7 @@ export function CoursesEditor({
           {courses.map((c, i) => (
             <div
               key={i}
-              className="flex items-center gap-2 rounded-full border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
+              className="flex items-center gap-2 rounded-md border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
             >
               <span className="font-semibold text-brand-700 dark:text-brand-400">{c.abbreviation}</span>
               <span className="text-muted-foreground">{c.title}</span>
@@ -246,7 +246,7 @@ export function CoursesEditor({
                 type="button"
                 onClick={() => remove(i)}
                 aria-label={`Remove ${c.abbreviation}`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
+                className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

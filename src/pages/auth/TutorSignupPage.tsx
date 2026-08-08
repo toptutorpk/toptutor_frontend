@@ -145,7 +145,7 @@ export default function TutorSignupPage() {
       <div>
         <AuthHeader title="You’re all set" subtitle="Your tutor account has been created." />
         <div className="flex flex-col items-center gap-4 py-6 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/15">
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/15">
             <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
           </div>
           <h2 className="font-display text-2xl font-extrabold tracking-tight">Congratulations! 🎉</h2>

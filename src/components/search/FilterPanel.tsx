@@ -148,7 +148,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
               key={l}
               onClick={() => onChange({ language: l as SearchFilters['language'] })}
               className={cn(
-                'rounded-full border px-3 py-1 text-sm transition-colors',
+                'rounded-md border px-3 py-1 text-sm transition-colors',
                 (filters.language ?? 'all') === l
                   ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400'
                   : 'hover:bg-secondary',
@@ -169,7 +169,7 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
               key={g.value}
               onClick={() => onChange({ gender: g.value as SearchFilters['gender'] })}
               className={cn(
-                'rounded-full border px-3 py-1 text-sm transition-colors',
+                'rounded-md border px-3 py-1 text-sm transition-colors',
                 (filters.gender ?? 'any') === g.value
                   ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400'
                   : 'hover:bg-secondary',

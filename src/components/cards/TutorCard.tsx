@@ -19,7 +19,7 @@ function DemoBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+        'inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
         className,
       )}
     >
@@ -73,7 +73,7 @@ function FavoriteButton({ tutorId, className }: { tutorId: string; className?: s
       }}
       aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-full border bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition-all hover:scale-110 hover:border-red-200 hover:text-red-500',
+        'flex h-9 w-9 items-center justify-center rounded-md border bg-card/90 text-muted-foreground shadow-sm backdrop-blur transition-all hover:scale-110 hover:border-red-200 hover:text-red-500',
         isFavorite && 'border-red-200 bg-red-50 text-red-500 dark:border-red-500/30 dark:bg-red-500/10',
         className,
       )}
@@ -121,7 +121,7 @@ function TutorListCard({ tutor, index }: { tutor: Tutor; index: number }) {
         </div>
 
         <div className="space-y-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
             <Award className="h-3.5 w-3.5" /> {tutor.experienceYears} years tutoring
           </span>
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
@@ -274,7 +274,7 @@ function TutorGridCard({ tutor, index }: { tutor: Tutor; index: number }) {
             <h3 className="truncate font-display text-lg font-bold leading-tight">{tutor.name}</h3>
           </Link>
           <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-400"
             title={`${tutor.experienceYears} years of teaching experience`}
           >
             <Award className="h-3 w-3" />
@@ -349,8 +349,8 @@ export function TutorCardSkeleton() {
         <div className="mt-3 h-5 w-2/3 animate-pulse rounded bg-muted" />
         <div className="mt-2 h-4 w-full animate-pulse rounded bg-muted" />
         <div className="mt-3 flex gap-2">
-          <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
-          <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+          <div className="h-6 w-16 animate-pulse rounded-md bg-muted" />
+          <div className="h-6 w-16 animate-pulse rounded-md bg-muted" />
         </div>
         <div className="mt-5 h-10 w-full animate-pulse rounded-xl bg-muted" />
       </div>
@@ -364,7 +364,7 @@ export function TutorListCardSkeleton() {
       <div className="flex shrink-0 items-center gap-4 sm:w-44 sm:flex-col">
         <div className="h-24 w-24 animate-pulse rounded-full bg-muted sm:h-28 sm:w-28" />
         <div className="hidden w-full space-y-2 sm:block">
-          <div className="mx-auto h-5 w-28 animate-pulse rounded-full bg-muted" />
+          <div className="mx-auto h-5 w-28 animate-pulse rounded-md bg-muted" />
           <div className="mx-auto h-4 w-20 animate-pulse rounded bg-muted" />
         </div>
       </div>

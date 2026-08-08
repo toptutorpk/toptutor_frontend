@@ -131,7 +131,7 @@ export default function TutorListingPage() {
                 {c.label}
                 <button
                   onClick={() => patch({ [c.key]: undefined } as Partial<SearchFilters>)}
-                  className="rounded-full p-0.5 hover:bg-background"
+                  className="rounded-sm p-0.5 hover:bg-background"
                   aria-label={`Remove ${c.label}`}
                 >
                   <X className="h-3 w-3" />

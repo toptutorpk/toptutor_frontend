@@ -100,7 +100,7 @@ export function LearningJourney() {
             <StaggerItem key={step.title} className="relative text-center">
               <div className="relative z-10 mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-card border-2 border-brand-500 shadow-lg">
                 <step.icon className="h-6 w-6 text-brand-600" />
-                <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
                   {i + 1}
                 </span>
               </div>
@@ -120,7 +120,7 @@ export function SuccessStories() {
     <Container>
       <div className="grid items-center gap-12 rounded-3xl border bg-secondary/40 p-8 lg:grid-cols-2 lg:p-14">
         <Reveal>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
             Real results
           </span>
           <h2 className="mt-4 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">

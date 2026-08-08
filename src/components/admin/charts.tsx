@@ -180,9 +180,9 @@ export function HBarList({
             <span className="font-medium">{it.label}</span>
             <span className="text-muted-foreground">{format(it.value)}</span>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+          <div className="h-2.5 overflow-hidden rounded-[3px] bg-secondary">
             <div
-              className="h-full rounded-full"
+              className="h-full rounded-[3px]"
               style={{ width: `${(it.value / max) * 100}%`, backgroundColor: it.color ?? '#2563eb' }}
             />
           </div>

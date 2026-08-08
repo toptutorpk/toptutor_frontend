@@ -102,12 +102,12 @@ export default function TutorProfilePage() {
                     </h1>
                     <VerificationBadge status={tutor.verificationStatus} />
                     {tutor.demoAvailable && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
                         <Sparkles className="h-3 w-3" /> Free Demo
                       </span>
                     )}
                     {tutor.isOnline && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
                         <span className="relative flex h-2 w-2">
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
                           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -176,7 +176,7 @@ export default function TutorProfilePage() {
                       className="h-full w-full object-cover opacity-60"
                     />
                     <button className="absolute inset-0 flex items-center justify-center">
-                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-brand-600 shadow-lg transition-transform group-hover:scale-110">
+                      <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-white/90 text-brand-600 shadow-lg transition-transform group-hover:scale-110">
                         <PlayCircle className="h-9 w-9" />
                       </span>
                     </button>
@@ -230,9 +230,9 @@ export default function TutorProfilePage() {
                       {tutor.courses.map((c, i) => (
                         <div
                           key={i}
-                          className="inline-flex items-center gap-1.5 rounded-full border bg-card py-1 pl-1.5 pr-3 shadow-sm"
+                          className="inline-flex items-center gap-1.5 rounded-md border bg-card py-1 pl-1.5 pr-3 shadow-sm"
                         >
-                          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                          <span className="rounded-sm bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
                             {c.abbreviation}
                           </span>
                           <span className="text-sm font-medium text-foreground/90">{c.title}</span>
@@ -255,7 +255,7 @@ export default function TutorProfilePage() {
                     {tutor.skills.map((s) => (
                       <span
                         key={s}
-                        className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+                        className="rounded-md bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
                       >
                         {s}
                       </span>
@@ -306,8 +306,8 @@ export default function TutorProfilePage() {
                           return (
                             <div key={star} className="flex items-center gap-2 text-sm">
                               <span className="w-3 text-muted-foreground">{star}</span>
-                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                                <div className="h-full rounded-full bg-gold-400" style={{ width: `${pct}%` }} />
+                              <div className="h-2 flex-1 overflow-hidden rounded-[3px] bg-secondary">
+                                <div className="h-full rounded-[3px] bg-gold-400" style={{ width: `${pct}%` }} />
                               </div>
                               <span className="w-8 text-right text-xs text-muted-foreground">{pct}%</span>
                             </div>
@@ -534,7 +534,7 @@ function AvailabilityStrip({
           s.booked ? (
             <span
               key={s.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
+              className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
             >
               <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
               <span className="text-[10px] font-bold uppercase tracking-wide">Booked</span>
@@ -545,7 +545,7 @@ function AvailabilityStrip({
               disabled={book.isPending || payingSlot != null}
               onClick={() => onBook(s)}
               title={s.mode === 'HOME' ? 'Reserve this home-visit slot' : 'Book & pay for this slot'}
-              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
+              className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
             >
               {payingSlot === s.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

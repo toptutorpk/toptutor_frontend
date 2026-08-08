@@ -33,7 +33,7 @@ function StatusChip({ status }: { status?: DocStatus }) {
   }[status];
   const Icon = meta.icon;
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', meta.cls)}>
+    <span className={cn('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold', meta.cls)}>
       <Icon className="h-3 w-3" /> {meta.label}
     </span>
   );
@@ -151,7 +151,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             </div>
           )}
           {locked && (
-            <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white shadow">
+            <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600 text-white shadow">
               <Lock className="h-3.5 w-3.5" />
             </div>
           )}

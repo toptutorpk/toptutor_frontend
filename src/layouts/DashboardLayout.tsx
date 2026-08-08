@@ -57,7 +57,7 @@ export function DashboardLayout({ role = 'student' }: DashboardLayoutProps) {
               </Button>
               <button
                 onClick={() => navigate(`/dashboard/${role}/profile`)}
-                className="flex items-center gap-2 rounded-full p-1 transition-colors hover:bg-secondary"
+                className="flex items-center gap-2 rounded-md p-1 transition-colors hover:bg-secondary"
               >
                 <Avatar className="h-9 w-9">
                   <AvatarImage src={user?.avatarUrl} alt={user?.name} />

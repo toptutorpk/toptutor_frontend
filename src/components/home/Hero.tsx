@@ -50,9 +50,9 @@ export function Hero() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 rounded-full border bg-background/70 px-3.5 py-1.5 text-sm font-medium shadow-sm backdrop-blur"
+            className="inline-flex items-center gap-2 rounded-md border bg-background/70 px-3.5 py-1.5 text-sm font-medium shadow-sm backdrop-blur"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+            <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-brand-100 text-brand-700">
               <Sparkles className="h-3 w-3" />
             </span>
             Pakistan’s only 7-step verified tutor marketplace
@@ -131,7 +131,7 @@ export function Hero() {
               <Link
                 key={s}
                 to={`/tutors?q=${encodeURIComponent(s)}`}
-                className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand-300 hover:text-primary"
+                className="rounded-md border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-brand-300 hover:text-primary"
               >
                 {s}
               </Link>
@@ -195,7 +195,7 @@ function HeroVisual() {
         className="absolute -left-6 top-12 w-56 rounded-2xl border bg-card/95 p-4 shadow-xl backdrop-blur"
       >
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>

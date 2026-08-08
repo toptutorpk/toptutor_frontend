@@ -49,7 +49,7 @@ export function AdminLayout() {
                 <Bell className="h-5 w-5" />
                 <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
               </Button>
-              <div className="flex items-center gap-2 rounded-full p-1">
+              <div className="flex items-center gap-2 rounded-md p-1">
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-brand-600 text-white">AD</AvatarFallback>
                 </Avatar>

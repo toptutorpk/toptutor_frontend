@@ -134,7 +134,7 @@ export default function AdminTutorReview() {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-xl font-bold">{summary.name}</h2>
                 {verified && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
                     <ShieldCheck className="h-3 w-3" /> Verified
                   </span>
                 )}
@@ -302,7 +302,7 @@ function DocumentCard({
           </a>
         )}
         <div className="absolute left-2 top-2">
-          <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', badge.cls)}>
+          <span className={cn('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold', badge.cls)}>
             {approved ? <Lock className="h-3 w-3" /> : status === 'REJECTED' ? <AlertTriangle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
             {badge.label}
           </span>
@@ -347,7 +347,7 @@ function AppStatusBadge({ status }: { status: string }) {
   const m = meta[status] ?? meta.DRAFT;
   const Icon = m.icon;
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold', m.cls)}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-semibold', m.cls)}>
       <Icon className="h-4 w-4" /> {m.label}
     </span>
   );

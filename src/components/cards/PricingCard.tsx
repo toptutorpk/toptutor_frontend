@@ -25,7 +25,7 @@ export function PricingCard({ tier }: { tier: Tier }) {
       )}
     >
       {tier.highlighted && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-1 text-xs font-bold text-white shadow-md">
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-1 text-xs font-bold text-white shadow-md">
           <Sparkles className="h-3 w-3" /> Most Popular
         </span>
       )}
@@ -40,7 +40,7 @@ export function PricingCard({ tier }: { tier: Tier }) {
       <ul className="mt-6 flex-1 space-y-3">
         {tier.features.map((f) => (
           <li key={f} className="flex items-start gap-2.5 text-sm">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
               <Check className="h-3 w-3" strokeWidth={3} />
             </span>
             <span className="text-foreground/90">{f}</span>

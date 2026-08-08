@@ -48,7 +48,7 @@ export function DashboardSidebar({ items, onNavigate }: { items: NavItem[]; onNa
               {showBadge && (
                 <span
                   className={cn(
-                    'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white',
+                    'flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-xs font-bold text-white',
                     item.to.endsWith('/alerts') ? 'bg-red-500' : 'bg-brand-600',
                   )}
                 >

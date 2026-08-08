@@ -228,7 +228,7 @@ function RangeEditor({
             <span
               key={r.id || `${r.start}-${r.end}`}
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium',
+                'inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm font-medium',
                 r.booked
                   ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400'
                   : 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400',

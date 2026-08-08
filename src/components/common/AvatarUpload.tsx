@@ -82,7 +82,7 @@ export function AvatarUpload({ url, name, size = 80, onChange }: Props) {
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-md transition-colors hover:bg-brand-700"
+          className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white shadow-md transition-colors hover:bg-brand-700"
           aria-label="Change profile photo"
         >
           <Camera className="h-4 w-4" />
