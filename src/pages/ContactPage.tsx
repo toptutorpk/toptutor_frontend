@@ -38,6 +38,8 @@ import {
 import { CITIES } from '@/constants';
 import { contactService } from '@/services/contactService';
 import { cn } from '@/lib/utils';
+import { isValidPhone, toE164, PHONE_ERROR } from '@/lib/phone';
+import { isValidEmail, normalizeEmail, EMAIL_ERROR } from '@/lib/email';
 
 // ---- Form schema -----------------------------------------------------------
 
@@ -69,11 +71,13 @@ const contactSchema = z
   .object({
     firstName: z.string().trim().min(2, 'Please enter your first name'),
     lastName: z.string().trim().min(2, 'Please enter your last name'),
-    email: z.string().trim().email('Enter a valid email address'),
+    email: z.string().trim().refine(isValidEmail, EMAIL_ERROR),
     phone: z
       .string()
       .trim()
-      .regex(/^(\+92|0)?3\d{9}$/, 'Enter a valid Pakistani mobile number (e.g. 03001234567)'),
+      // Was a local regex that both rejected 923001234567 and accepted a bare 3001234567.
+      // One rule, defined once, so the contact form cannot drift from the signup forms.
+      .refine(isValidPhone, PHONE_ERROR),
     city: z.string().optional(),
     role: z.string().min(1, 'Please tell us who you are'),
     topics: z.array(z.string()).min(1, 'Select at least one topic'),
@@ -306,8 +310,9 @@ function ContactFormSection() {
       const { reference } = await contactService.submit({
         firstName: values.firstName,
         lastName: values.lastName,
-        email: values.email,
-        phone: values.phone,
+        email: normalizeEmail(values.email),
+        // Canonical on the wire here too, so an enquiry can be matched against an account.
+        phone: toE164(values.phone)!,
         city: values.city || undefined,
         role: values.role,
         topics: values.topics,

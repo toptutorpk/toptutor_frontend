@@ -26,15 +26,13 @@ import { useAuthStore } from '@/store/authStore';
 import { authService, type VerificationChannel } from '@/services/authService';
 import { ApiError } from '@/api/client';
 import { isStrongPassword, passwordChecklist } from '@/lib/password';
+import { isValidPhone, toE164, toMaskedDisplay, PHONE_ERROR } from '@/lib/phone';
+import { maskEmail, isValidEmail, normalizeEmail, EMAIL_ERROR } from '@/lib/email';
+import { useCooldown } from '@/hooks/useCooldown';
 import { toast } from '@/components/ui/sonner';
 
 const STEPS = ['Account', 'Verify'];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Strips spaces/dashes so the phone matches the backend's E.164-ish format. */
-function normalizePhone(raw: string): string {
-  return raw.replace(/[\s-]/g, '');
-}
 
 export default function TutorSignupPage() {
   const [step, setStep] = useState(0);
@@ -62,8 +60,8 @@ export default function TutorSignupPage() {
   const accountValid =
     form.firstName.trim().length >= 2 &&
     form.lastName.trim().length >= 1 &&
-    EMAIL_RE.test(form.email) &&
-    normalizePhone(form.phone).length >= 8 &&
+    isValidEmail(form.email) &&
+    isValidPhone(form.phone) &&
     isStrongPassword(form.password) &&
     passwordsMatch;
 
@@ -81,8 +79,9 @@ export default function TutorSignupPage() {
   const sendCodes = async () => {
     setSending(true);
     try {
-      const email = form.email.trim().toLowerCase();
-      const phone = normalizePhone(form.phone);
+      const email = normalizeEmail(form.email);
+      // Non-null: accountValid gates this step and already required a convertible number.
+      const phone = toE164(form.phone)!;
       const challenge = await authService.registerTutor({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -104,6 +103,14 @@ export default function TutorSignupPage() {
       showDevCodes(challenge.devPhoneCode, challenge.devEmailCode);
       setStep(1);
     } catch (e) {
+      // Same conflict as the student form: one canonical value means one registration, however
+      // the number was typed.
+      if (e instanceof ApiError && e.status === 409) {
+        toast.error('Already registered', {
+          description: 'That phone number or email already has an account. Try logging in.',
+        });
+        return;
+      }
       toast.error('Could not start registration', { description: errorMessage(e) });
     } finally {
       setSending(false);
@@ -115,7 +122,11 @@ export default function TutorSignupPage() {
     try {
       const challenge = await authService.resendTutorOtp({ tutorId, channel });
       showDevCodes(challenge.devPhoneCode, challenge.devEmailCode);
-      toast.success(`${channel === 'PHONE' ? 'SMS' : 'Email'} code resent`);
+      // Says the old code is dead. Otherwise someone who receives the replacement while still
+      // holding the first message has two codes and no reason to prefer either.
+      toast.success(`${channel === 'PHONE' ? 'SMS' : 'Email'} code resent`, {
+        description: 'Your previous code is no longer valid.',
+      });
     } catch (e) {
       toast.error('Could not resend code', { description: errorMessage(e) });
     }
@@ -172,13 +183,13 @@ export default function TutorSignupPage() {
       />
 
       {/* Stepper */}
-      <div className="mb-8 flex items-center">
+      <div className="mb-5 flex items-center">
         {STEPS.map((label, i) => (
           <div key={label} className="flex flex-1 items-center last:flex-none">
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors',
+                  'flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors',
                   i < step && 'border-brand-500 bg-brand-500 text-white',
                   i === step && 'border-brand-500 text-brand-600',
                   i > step && 'border-input text-muted-foreground',
@@ -197,7 +208,7 @@ export default function TutorSignupPage() {
 
       {/* Step 1 — Account details (all required) */}
       {step === 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="First name" icon={User}>
               <Input
@@ -216,20 +227,38 @@ export default function TutorSignupPage() {
               />
             </Field>
           </div>
-          <Field label="Email" icon={Mail}>
+          {/* Says so, rather than only disabling Continue. An invalid address used to leave the
+              button dead with nothing to explain why — and this is the field a verification code
+              has to reach, so being wrong here is not recoverable later. */}
+          <Field
+            label="Email"
+            icon={Mail}
+            error={form.email && !isValidEmail(form.email) ? EMAIL_ERROR : undefined}
+          >
             <Input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="you@email.com"
+              autoComplete="email"
               className="pl-9"
             />
           </Field>
-          <Field label="Phone number" icon={Phone}>
+          {/* The error goes through Field's own prop rather than inline beneath the input: Field
+              centres the icon on the wrapper around its children, so anything rendered in there
+              alongside the input pulls the icon below the input's centre line. The placeholder
+              carries the format, and the message only appears once there is something wrong. */}
+          <Field
+            label="Phone number"
+            icon={Phone}
+            error={form.phone && !isValidPhone(form.phone) ? PHONE_ERROR : undefined}
+          >
             <Input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="+923001234567"
+              placeholder="03001234567"
+              inputMode="numeric"
+              autoComplete="tel"
               className="pl-9"
             />
           </Field>
@@ -294,17 +323,30 @@ export default function TutorSignupPage() {
       {/* Step 2 — Verify both codes */}
       {step === 1 && (
         <div className="space-y-3">
+          {/* States both destinations once, up front, so the two blocks below are a task list
+              rather than the first news of where anything was sent. Masked: enough of each to be
+              recognised by the person who owns it, not enough to be learned by anyone else. */}
+          <p className="text-center text-sm leading-relaxed text-muted-foreground">
+            We’ve sent a 6-digit code to your phone{' '}
+            <span className="font-semibold text-foreground">
+              {toMaskedDisplay(toE164(form.phone))}
+            </span>{' '}
+            and email <span className="font-semibold text-foreground">{maskEmail(form.email)}</span>
+          </p>
+
           <OtpBlock
             icon={MessageSquare}
             title="SMS code"
-            sentTo={form.phone}
+            // Masked, and in the local form: the code went to the canonical number, but people
+            // recognise their own number as they write it, not as E.164.
+            sentTo={toMaskedDisplay(toE164(form.phone))}
             onChange={setSmsCode}
             onResend={() => resend('PHONE')}
           />
           <OtpBlock
             icon={MailCheck}
             title="Email code"
-            sentTo={form.email}
+            sentTo={maskEmail(form.email)}
             onChange={setEmailCode}
             onResend={() => resend('EMAIL')}
           />
@@ -336,7 +378,17 @@ function errorMessage(e: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
+/**
+ * The outstanding password requirements.
+ *
+ * <p>Withdraws entirely once the password satisfies all of them. The list is instruction, and
+ * instruction that has been followed is just clutter sitting between the field and the button —
+ * its disappearance is itself the confirmation that nothing is left to do. It stays away until
+ * there is something to say again, so an edit that breaks a rule brings it straight back.
+ */
 function PasswordChecklist({ password }: { password: string }) {
+  if (isStrongPassword(password)) return null;
+
   return (
     <ul className="grid grid-cols-1 gap-1 rounded-xl border bg-secondary/40 p-3 sm:grid-cols-2">
       {passwordChecklist(password).map((rule) => (
@@ -358,19 +410,24 @@ function PasswordChecklist({ password }: { password: string }) {
 function Field({
   label,
   icon: Icon,
+  error,
   children,
 }: {
   label: string;
   icon: typeof User;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <Label>{label}</Label>
+      {/* Only the control belongs in here. The icon is centred on this box, so it tracks the
+          input's centre line only while the input is the sole thing in it. */}
       <div className="relative">
         <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         {children}
       </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }
@@ -388,33 +445,62 @@ function OtpBlock({
   onChange: (code: string) => void;
   onResend: () => void;
 }) {
-  const [resent, setResent] = useState(false);
+  // The clock starts on mount, which is the moment this block appears — i.e. the moment the first
+  // code was sent. There is no window in which resend is available before the code has had a
+  // chance to arrive.
+  const { remaining, active, start } = useCooldown();
+  const [resetToken, setResetToken] = useState(0);
+
+  const resend = () => {
+    onResend();
+    start();
+    // Empties the boxes and drops the caret back in the first one. The code that was being typed
+    // belongs to the message that was just superseded, so leaving it there would offer the person
+    // a code the server has already discarded.
+    setResetToken((n) => n + 1);
+  };
+
   return (
     <div className="rounded-xl border bg-card p-3 shadow-soft">
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
-            <Icon className="h-3.5 w-3.5" />
-          </span>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">{title}</div>
-            <div className="text-[11px] text-muted-foreground">Sent to {sentTo || '—'}</div>
-          </div>
+      {/* The heading is pure identity — which channel this is, and where it went. The action that
+          used to share this row has moved below the boxes: resending is what you reach for after
+          looking for a code and not finding one, which is a decision made at the end of the block
+          rather than before it. */}
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 leading-tight">
+          <div className="text-sm font-semibold">{title}</div>
+          <div className="truncate text-[11px] text-muted-foreground">Sent to {sentTo || '—'}</div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            onResend();
-            setResent(true);
-            setTimeout(() => setResent(false), 3000);
-          }}
-          className="shrink-0 text-[11px] font-medium text-primary hover:underline disabled:opacity-60"
-          disabled={resent}
-        >
-          {resent ? 'Resent' : 'Resend'}
-        </button>
       </div>
-      <OtpInput size="sm" onChange={onChange} />
+
+      <OtpInput size="sm" resetToken={resetToken} onChange={onChange} />
+
+      <div className="mt-2.5 text-center text-[11px] text-muted-foreground">
+        Didn’t get it?{' '}
+        {active ? (
+          // The wait is stated as a time, not as a greyed-out button with no explanation. A
+          // disabled control that says only "Resend code" reads as broken.
+          <span className="font-medium tabular-nums">
+            Resend in {formatCountdown(remaining)}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={resend}
+            className="font-semibold text-primary hover:underline"
+          >
+            Resend code
+          </button>
+        )}
+      </div>
     </div>
   );
+}
+
+/** 60 → "1:00", 9 → "0:09". Seconds alone read as a bigger number than they are at a minute. */
+function formatCountdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }

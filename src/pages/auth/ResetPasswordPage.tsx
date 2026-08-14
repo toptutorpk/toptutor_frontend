@@ -107,19 +107,23 @@ export default function ResetPasswordPage() {
           )}
         </div>
 
-        <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {passwordChecklist(password).map((rule) => (
-            <li
-              key={rule.label}
-              className={cn(
-                'flex items-center gap-2 text-xs',
-                rule.met ? 'text-emerald-600' : 'text-muted-foreground',
-              )}
-            >
-              <CheckCircle2 className={cn('h-3.5 w-3.5', !rule.met && 'opacity-40')} /> {rule.label}
-            </li>
-          ))}
-        </ul>
+        {/* Withdraws once every rule is met, as on the signup form: a list of instructions that
+            have all been followed only stands between the field and the button. */}
+        {!isStrongPassword(password) && (
+          <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {passwordChecklist(password).map((rule) => (
+              <li
+                key={rule.label}
+                className={cn(
+                  'flex items-center gap-2 text-xs',
+                  rule.met ? 'text-emerald-600' : 'text-muted-foreground',
+                )}
+              >
+                <CheckCircle2 className={cn('h-3.5 w-3.5', !rule.met && 'opacity-40')} /> {rule.label}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <Button
           type="submit"

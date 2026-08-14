@@ -52,10 +52,38 @@ export interface TutorBooking {
   paymentStatus: string; // NONE | PENDING | PAID | FAILED
 }
 
+/** A learner's chosen slice of one of the tutor's recurring weekly windows, on a concrete date. */
+export interface CreateSessionInput {
+  tutorId: number;
+  weeklySlotId: number;
+  sessionDate: string; // 'YYYY-MM-DD'
+  start: string; // 'HH:MM'
+  end: string; // 'HH:MM'
+  packageId: string;
+}
+
+/**
+ * Mirrors the server's pricing so the dialog shows what will actually be charged.
+ *
+ * <p>The rate is per hour, so a 90-minute session costs 1.5×; package discounts then apply to that
+ * duration-scaled figure. The server recomputes all of this from the tutor's own rate and ignores
+ * whatever the client believes — this exists to keep the two in visible agreement, not to set price.
+ */
+export function priceForSession(hourlyRate: number, packageId: string, minutes: number): number {
+  const perSession = (hourlyRate * minutes) / 60;
+  switch (packageId) {
+    case 'weekly':
+      return Math.round(perSession * 0.9) * 8;
+    case 'intensive':
+      return Math.round(perSession * 0.82) * 16;
+    default:
+      return Math.round(perSession);
+  }
+}
+
 export const bookingService = {
   /** Creates a paid session booking and returns the Safepay checkout URL to redirect to. */
-  createSession: (tutorId: number, slotId: number, packageId: string) =>
-    http.post<SessionBooking>('/bookings/session', { tutorId, slotId, packageId }),
+  createSession: (input: CreateSessionInput) => http.post<SessionBooking>('/bookings/session', input),
   /** Confirms payment on return from checkout. */
   confirm: (bookingId: number) => http.post<BookingStatus>(`/bookings/${bookingId}/confirm`),
   /** Polls a booking's status. */

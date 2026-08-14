@@ -223,13 +223,10 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
         </div>
       </div>
 
-      <label className="flex items-center justify-between rounded-xl border bg-secondary/40 p-3">
-        <span className="text-sm font-medium">Verified tutors only</span>
-        <Checkbox
-          checked={filters.verifiedOnly ?? false}
-          onCheckedChange={(v) => onChange({ verifiedOnly: Boolean(v) })}
-        />
-      </label>
+      {/* A "verified tutors only" toggle used to sit here. It never reached the API — toParams
+          never forwarded it — so it filtered nothing, and now that only verified tutors are listed
+          at all it would imply the opposite of the guarantee: that unverified tutors are in these
+          results and merely hidden by a checkbox. */}
     </div>
   );
 }

@@ -126,10 +126,17 @@ export interface Tutor {
   availabilitySlots?: AvailabilityTimeSlot[];
 }
 
-/** A bookable availability time-range shown on the tutor profile. */
+/**
+ * An undated, bookable home-visit time range shown on the tutor profile.
+ *
+ * <p>Online availability is deliberately absent: it recurs weekly and is booked against a specific
+ * date, so it comes from `availabilityService.publicSlots` instead. The mode is kept as a literal
+ * `'HOME'` so any code still reaching for online slots here fails to compile rather than silently
+ * filtering to nothing.
+ */
 export interface AvailabilityTimeSlot {
   id: number;
-  mode: 'ONLINE' | 'HOME';
+  mode: 'HOME';
   start: string;
   end: string;
   booked: boolean;
@@ -205,7 +212,8 @@ export interface SearchFilters {
   minRating?: number;
   gender?: GenderPreference;
   language?: TeachingLanguage | 'all';
-  verifiedOnly?: boolean;
+  // No verifiedOnly filter: every listed tutor is verified, so it could only ever be a no-op that
+  // implied unverified tutors were in the results.
   sort?: 'relevance' | 'rating' | 'price_low' | 'price_high' | 'experience';
   page?: number;
 }

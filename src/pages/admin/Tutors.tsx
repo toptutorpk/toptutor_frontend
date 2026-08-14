@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from '@/components/ui/sonner';
 import { getInitials } from '@/lib/utils';
+import { toNationalDisplay } from '@/lib/phone';
 import { adminService, type AdminTutorSummary } from '@/services/adminService';
 
 export default function AdminTutors() {
@@ -58,7 +59,7 @@ export default function AdminTutors() {
   const columns: Column<AdminTutorSummary>[] = [
     { header: 'Tutor', cell: (t) => <PersonCell name={t.name} sub={t.email} /> },
     { header: 'City', cell: (t) => t.city ?? '—' },
-    { header: 'Phone', cell: (t) => t.phone ?? '—' },
+    { header: 'Phone', cell: (t) => toNationalDisplay(t.phone) || '—' },
     { header: 'Verification', cell: (t) => <VerifyBadge status={t.verification} /> },
     { header: 'Steps', align: 'center', cell: (t) => `${t.stepsPassed}/${t.stepsTotal}` },
     { header: 'Status', cell: (t) => <AccountBadge status={t.status} /> },
@@ -156,7 +157,7 @@ export default function AdminTutors() {
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
                 <Detail label="City" value={selected.city ?? '—'} />
-                <Detail label="Phone" value={selected.phone ?? '—'} />
+                <Detail label="Phone" value={toNationalDisplay(selected.phone) || '—'} />
                 <Detail label="Verification steps" value={`${selected.stepsPassed}/${selected.stepsTotal} passed`} />
                 <Detail label="Joined" value={selected.createdAt?.slice(0, 10) ?? '—'} />
               </dl>

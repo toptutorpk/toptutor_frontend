@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @plugin 'tailwindcss-animate';
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================================
    TopTutor Design System — Tailwind v4 theme tokens
@@ -189,6 +190,21 @@
       linear-gradient(to bottom, hsl(var(--border) / 0.6) 1px, transparent 1px);
     background-size: 40px 40px;
   }
+  /* Dot lattice — the square grid rendered as points rather than rules. Each
+     tile paints one dot at its centre, so lattice points sit at
+     (n + 0.5) * --dot-gap from the element's top-left. <DotField> relies on
+     that offset to line its travelling sparks up with the pattern. */
+  .bg-dots {
+    --dot-gap: 28px;
+    --dot-size: 1.2px;
+    --dot-color: hsl(var(--border));
+    background-image: radial-gradient(
+      circle,
+      var(--dot-color) var(--dot-size),
+      transparent calc(var(--dot-size) + 0.7px)
+    );
+    background-size: var(--dot-gap) var(--dot-gap);
+  }
   .container-px {
     padding-left: 1rem;
     padding-right: 1rem;
@@ -242,6 +258,51 @@
 @media (prefers-reduced-motion: reduce) {
   /* Keep the static arcs, drop the motion. */
   .arc-streak {
+    display: none;
+  }
+}
+
+/* ---- Travelling dots -----------------------------------------------------
+   A spark glides along one lattice row (or column), fading in as it enters
+   and out as it leaves, so it reads as a light running through the grid
+   rather than a dot that pops in and out. */
+@keyframes dot-drift-x {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--dot-travel));
+  }
+}
+@keyframes dot-drift-y {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--dot-travel));
+  }
+}
+.dot-spark {
+  animation: dot-drift-x var(--dot-duration, 9s) ease-in-out var(--dot-delay, 0s) infinite;
+}
+.dot-spark-y {
+  animation-name: dot-drift-y;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The static lattice carries the design on its own. */
+  .dot-spark {
     display: none;
   }
 }

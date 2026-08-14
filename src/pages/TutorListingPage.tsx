@@ -43,7 +43,6 @@ export default function TutorListingPage() {
       minPrice: num('minPrice'),
       maxPrice: num('maxPrice'),
       minRating: num('minRating'),
-      verifiedOnly: params.get('verifiedOnly') === 'true',
       sort: (params.get('sort') as SearchFilters['sort']) ?? 'relevance',
       page: num('page') ?? 1,
     };
@@ -56,7 +55,9 @@ export default function TutorListingPage() {
       const p = new URLSearchParams(prev);
       Object.entries(next).forEach(([k, v]) => {
         const key = k === 'query' ? 'q' : k;
-        if (v === undefined || v === null || v === '' || v === 'all' || v === 'any' || v === false) {
+        // No `v === false` case: verifiedOnly was the only boolean filter, and with it gone every
+        // remaining value is a string or a number.
+        if (v === undefined || v === null || v === '' || v === 'all' || v === 'any') {
           p.delete(key);
         } else {
           p.set(key, String(v));
@@ -194,6 +195,5 @@ function buildActiveChips(f: SearchFilters) {
   if (f.language && f.language !== 'all') chips.push({ key: 'language', label: f.language });
   if (f.gender && f.gender !== 'any') chips.push({ key: 'gender', label: f.gender });
   if (f.minRating) chips.push({ key: 'minRating', label: `${f.minRating}★ & up` });
-  if (f.verifiedOnly) chips.push({ key: 'verifiedOnly', label: 'Verified only' });
   return chips;
 }

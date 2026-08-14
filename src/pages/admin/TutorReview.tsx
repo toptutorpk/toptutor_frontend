@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/sonner';
 import { cn, getInitials } from '@/lib/utils';
+import { toNationalDisplay } from '@/lib/phone';
 import { adminService } from '@/services/adminService';
 import type { DocStatus, VerificationSlot } from '@/services/verificationService';
 
@@ -142,7 +143,7 @@ export default function AdminTutorReview() {
               {profile?.headline && <p className="text-sm text-muted-foreground">{profile.headline}</p>}
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span>{summary.email}</span>
-                {summary.phone && <span>{summary.phone}</span>}
+                {summary.phone && <span>{toNationalDisplay(summary.phone)}</span>}
                 {(profile?.area || profile?.city) && (
                   <span className="inline-flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {[profile?.area, profile?.city].filter(Boolean).join(', ')}

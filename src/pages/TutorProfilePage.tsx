@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
@@ -8,6 +8,7 @@ import {
   Languages,
   Clock,
   Repeat,
+  ShieldQuestion,
   CheckCircle2,
   Heart,
   Share2,
@@ -24,7 +25,6 @@ import type { Tutor } from '@/types';
 import { useBookIntro } from '@/hooks/useBookIntro';
 import { useAuthStore } from '@/store/authStore';
 import { availabilityService, formatRange } from '@/services/availabilityService';
-import { bookingService } from '@/services/bookingService';
 import { queryKeys } from '@/api/queryKeys';
 import { toast } from '@/components/ui/sonner';
 import { ApiError } from '@/api/client';
@@ -42,6 +42,7 @@ import { ReviewCard } from '@/components/reviews/ReviewCard';
 import { reviewService } from '@/services/reviewService';
 import { BookingPanel } from '@/components/booking/BookingPanel';
 import { LoadingState, ErrorState } from '@/components/common/StateViews';
+import { isPublicTutor } from '@/services/tutorService';
 import { useTutor } from '@/hooks/useTutors';
 import { useUIStore } from '@/store/uiStore';
 
@@ -61,12 +62,20 @@ export default function TutorProfilePage() {
   if (isLoading) return <LoadingState label="Loading tutor profile…" />;
   if (isError || !tutor) return <ErrorState onRetry={() => refetch()} message="Tutor not found." />;
 
-  const slots = tutor.availabilitySlots ?? [];
-  const hasOnlineSlots = slots.some((s) => s.mode === 'ONLINE');
-  const hasHomeSlots = slots.some((s) => s.mode === 'HOME');
+  // A tutor still in verification has no public profile. The page stops here rather than hiding
+  // the booking panel further down: the biography, rates and qualifications are themselves the
+  // unverified claims, and publishing them while withholding the button would still amount to
+  // listing the tutor. The wording deliberately reveals nothing about who the tutor is or what
+  // stage they have reached — verification status is not public information.
+  if (!isPublicTutor(tutor)) return <UnlistedTutor />;
+
+  // Online availability is dated and no longer part of availabilitySlots, so "offers online" comes
+  // from the tutor's teaching modes; home visits are still an undated list of slots.
+  const offersOnline = tutor.modes?.includes('online') ?? false;
+  const hasHomeSlots = (tutor.availabilitySlots ?? []).some((s) => s.mode === 'HOME');
   // Pricing follows the toggle only when both modes exist; otherwise it uses whichever is offered.
   const effectiveMode: 'ONLINE' | 'HOME' =
-    hasOnlineSlots && hasHomeSlots ? sessionMode : hasHomeSlots ? 'HOME' : 'ONLINE';
+    offersOnline && hasHomeSlots ? sessionMode : hasHomeSlots ? 'HOME' : 'ONLINE';
 
   const stats = [
     { icon: GraduationCap, label: 'Sessions', value: tutor.totalSessions.toLocaleString() },
@@ -438,9 +447,19 @@ function AvailabilityStrip({
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
 
-  const slots = tutor.availabilitySlots ?? [];
-  const hasOnline = slots.some((s) => s.mode === 'ONLINE');
-  const hasHome = slots.some((s) => s.mode === 'HOME');
+  // availabilitySlots is home-visit only now: online availability recurs weekly and is bookable per
+  // date, so it comes from the dated slots endpoint instead.
+  const homeSlots = (tutor.availabilitySlots ?? [])
+    .filter((s) => s.mode === 'HOME')
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const hasOnline = tutor.modes?.includes('online') ?? false;
+  const hasHome = homeSlots.length > 0;
+
+  const { data: onlineSlots } = useQuery({
+    queryKey: ['public', 'slots', tutor.id],
+    queryFn: () => availabilityService.publicSlots(Number(tutor.id)),
+    enabled: hasOnline,
+  });
 
   // Home-visit slots have no online payment — they are reserved directly (arranged with the tutor).
   const book = useMutation({
@@ -455,46 +474,22 @@ function AvailabilityStrip({
       }),
   });
 
-  // Online slots go through the paid booking flow (Safepay) — never reserved for free.
-  const [payingSlot, setPayingSlot] = useState<number | null>(null);
-
-  const requireLearner = () => {
+  const onBookHome = (slotId: number) => {
     if (!user) {
       navigate('/login', { state: { from: `/tutors/${tutor.slug}` } });
-      return false;
+      return;
     }
     if (user.role !== 'student' && user.role !== 'parent') {
       toast.info('Use a student or parent account to book.');
-      return false;
-    }
-    return true;
-  };
-
-  const onBook = async (slot: { id: number; mode: 'ONLINE' | 'HOME' }) => {
-    if (!requireLearner()) return;
-    if (slot.mode === 'HOME') {
-      book.mutate(slot.id);
       return;
     }
-    // Online → create a paid session and redirect to Safepay's hosted checkout.
-    setPayingSlot(slot.id);
-    try {
-      const res = await bookingService.createSession(Number(tutor.id), slot.id, 'single');
-      window.location.href = res.checkoutUrl;
-    } catch (e) {
-      toast.error('Could not start payment', {
-        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
-      });
-      setPayingSlot(null);
-    }
+    book.mutate(slotId);
   };
 
-  if (slots.length === 0) return null;
+  const showOnline = hasOnline && (mode === 'ONLINE' || !hasHome);
+  const upcomingOnline = (onlineSlots?.days ?? []).slice(0, 4);
 
-  const shown = slots
-    .filter((s) => s.mode === (hasOnline && hasHome ? mode : hasOnline ? 'ONLINE' : 'HOME'))
-    .sort((a, b) => a.start.localeCompare(b.start));
-  const openCount = shown.filter((s) => !s.booked).length;
+  if (!hasHome && !hasOnline) return null;
 
   return (
     <div className="mt-6 border-t pt-5">
@@ -502,9 +497,11 @@ function AvailabilityStrip({
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-brand-500" />
           <h3 className="font-display text-sm font-bold">Available time slots</h3>
-          <span className="text-xs text-muted-foreground">
-            · {openCount} of {shown.length} open
-          </span>
+          {!showOnline && (
+            <span className="text-xs text-muted-foreground">
+              · {homeSlots.filter((s) => !s.booked).length} of {homeSlots.length} open
+            </span>
+          )}
         </div>
         {hasOnline && hasHome && (
           <div className="flex rounded-lg border p-0.5 text-xs font-medium">
@@ -530,43 +527,117 @@ function AvailabilityStrip({
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {shown.map((s) =>
-          s.booked ? (
-            <span
-              key={s.id}
-              className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
-            >
-              <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
-              <span className="text-[10px] font-bold uppercase tracking-wide">Booked</span>
-            </span>
-          ) : (
-            <button
-              key={s.id}
-              disabled={book.isPending || payingSlot != null}
-              onClick={() => onBook(s)}
-              title={s.mode === 'HOME' ? 'Reserve this home-visit slot' : 'Book & pay for this slot'}
-              className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
-            >
-              {payingSlot === s.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      {showOnline ? (
+        /* Online times are dated — the same window is free one week and taken the next. This is a
+           preview of the next few open days; the exact time is chosen in the booking dialog. */
+        upcomingOnline.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No online times open in the next few weeks.
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 space-y-2">
+              {upcomingOnline.map((day) => (
+                <div key={day.date} className="flex flex-wrap items-center gap-2">
+                  <span className="w-24 shrink-0 text-xs font-semibold text-muted-foreground">
+                    {new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </span>
+                  {day.ranges.map((r) => (
+                    <span
+                      key={`${r.weeklySlotId}-${r.start}`}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400"
+                    >
+                      <Clock className="h-3.5 w-3.5" /> {formatRange(r.start, r.end)}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Pick your exact date, start time and session length with “Book a Session”.
+            </p>
+          </>
+        )
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {homeSlots.map((s) =>
+              s.booked ? (
+                <span
+                  key={s.id}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-sm font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
+                >
+                  <Clock className="h-3.5 w-3.5" /> {formatRange(s.start, s.end)}
+                  <span className="text-[10px] font-bold uppercase tracking-wide">Booked</span>
+                </span>
               ) : (
-                <Clock className="h-3.5 w-3.5" />
-              )}
-              {formatRange(s.start, s.end)}
-            </button>
-          ),
-        )}
-      </div>
+                <button
+                  key={s.id}
+                  disabled={book.isPending}
+                  onClick={() => onBookHome(s.id)}
+                  title="Reserve this home-visit slot"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-3 py-1 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-60 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400"
+                >
+                  {book.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Clock className="h-3.5 w-3.5" />
+                  )}
+                  {formatRange(s.start, s.end)}
+                </button>
+              ),
+            )}
+          </div>
 
-      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-brand-500" /> Available
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-red-500" /> Booked
-        </span>
-      </div>
+          <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-brand-500" /> Available
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-red-500" /> Booked
+            </span>
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+/**
+ * Shown in place of a profile that is not cleared for publication.
+ *
+ * <p>Phrased as availability rather than as a verification outcome. A page announcing "this tutor
+ * is under review" would publish, to anyone who guessed a URL, both that the person has applied and
+ * how far they have got — which is the tutor's business, not the visitor's.
+ */
+function UnlistedTutor() {
+  return (
+    <Container size="narrow" className="py-20">
+      <div className="flex flex-col items-center text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
+          <ShieldQuestion className="h-8 w-8" />
+        </span>
+        <h1 className="mt-6 font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
+          This profile isn’t available
+        </h1>
+        <p className="mt-3 max-w-md text-muted-foreground">
+          Only tutors who have completed our full 7-step verification appear on TopTutor. This
+          profile isn’t among them right now — every tutor you can browse and book has been
+          identity-checked, background-checked and demo-tested.
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Button variant="gradient" asChild>
+            <Link to="/tutors">Browse verified tutors</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/how-it-works">How verification works</Link>
+          </Button>
+        </div>
+      </div>
+    </Container>
   );
 }

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, ArrowLeft, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { authService } from '@/services/authService';
+import { toMaskedDisplay } from '@/lib/phone';
+import { useCooldown } from '@/hooks/useCooldown';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/components/ui/sonner';
 
@@ -12,16 +14,15 @@ export default function OtpVerificationPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const setSession = useAuthStore((s) => s.setSession);
-  const phone = (location.state as { phone?: string })?.phone ?? '+92 300 1234567';
+  // Held canonically, because it is what the verify and resend calls are keyed by; only the
+  // rendering below converts to the local form.
+  const phone = (location.state as { phone?: string })?.phone ?? '';
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [seconds, setSeconds] = useState(45);
-
-  useEffect(() => {
-    if (seconds <= 0) return;
-    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [seconds]);
+  const [resetToken, setResetToken] = useState(0);
+  // Was a hand-rolled 45-second countdown that decremented once per tick, so it fell behind real
+  // time whenever the tab was hidden. Same hook and same minute as the tutor signup flow now.
+  const { remaining, active, start } = useCooldown();
 
   const verify = async (value: string) => {
     setLoading(true);
@@ -47,11 +48,13 @@ export default function OtpVerificationPage() {
         subtitle={
           <>
             Enter the 6-digit code sent to{' '}
-            <span className="font-medium text-foreground">{phone}</span>
+            <span className="font-semibold text-foreground">
+              {toMaskedDisplay(phone) || 'your phone'}
+            </span>
           </>
         }
       />
-      <OtpInput onComplete={verify} onChange={setCode} />
+      <OtpInput resetToken={resetToken} onComplete={verify} onChange={setCode} />
 
       <Button
         variant="gradient"
@@ -66,15 +69,20 @@ export default function OtpVerificationPage() {
 
       <div className="mt-5 text-sm text-muted-foreground">
         Didn’t get the code?{' '}
-        {seconds > 0 ? (
-          <span>Resend in {seconds}s</span>
+        {active ? (
+          <span className="font-medium tabular-nums">
+            Resend in {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
+          </span>
         ) : (
           <button
             className="font-semibold text-primary hover:underline"
             onClick={() => {
-              setSeconds(45);
               authService.requestOtp(phone);
-              toast.success('Code resent');
+              start();
+              // The previous code is dead once a new one is sent; clearing the boxes stops the
+              // person submitting digits that can only be rejected.
+              setResetToken((n) => n + 1);
+              toast.success('Code resent', { description: 'Your previous code is no longer valid.' });
             }}
           >
             Resend code

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { SocialButtons } from '@/components/auth/SocialButtons';
 import { useAuthStore } from '@/store/authStore';
+import { normalizeIdentifier } from '@/lib/phone';
 import { toast } from '@/components/ui/sonner';
 import type { User } from '@/types';
 
@@ -55,7 +56,11 @@ export default function LoginPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const result = await login(values);
+      // The identifier is canonicalised before it is sent, so signing in with 03001234567 reaches
+      // the account registered as +923001234567. Without this, accepting three input formats at
+      // registration would simply move the problem to the login form. Emails and anything that is
+      // not a valid number pass through untouched for the server to judge.
+      const result = await login({ ...values, email: normalizeIdentifier(values.email) });
       if (result.twoFactorRequired) {
         setChallengeId(result.challengeId);
         toast.success('Check your email', { description: 'We sent you a 6-digit login code.' });
@@ -146,12 +151,19 @@ export default function LoginPage() {
         }
       />
       <SocialButtons />
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email or phone</Label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="email" type="text" placeholder="you@email.com or +92…" className="pl-9" {...register('email')} />
+            <Input
+              id="email"
+              type="text"
+              placeholder="you@email.com or 03001234567"
+              autoComplete="username"
+              className="pl-9"
+              {...register('email')}
+            />
           </div>
           {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
         </div>
@@ -189,20 +201,13 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <div className="mt-6 rounded-xl border bg-secondary/40 p-3 text-center text-xs text-muted-foreground">
+      <div className="mt-4 rounded-xl border bg-secondary/40 p-3 text-center text-xs text-muted-foreground">
         Are you a parent? You can also{' '}
         <Link to="/verify-otp" className="font-semibold text-primary hover:underline">
           log in with a phone OTP
         </Link>{' '}
         — no password needed.
       </div>
-
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        Trouble signing in?{' '}
-        <Link to="/contact" className="font-semibold text-primary hover:underline">
-          Contact support
-        </Link>
-      </p>
     </div>
   );
 }

@@ -63,6 +63,7 @@ import { authService, type Child, type Course } from '@/services/authService';
 import { accountService } from '@/services/accountService';
 import { ApiError, getAccessToken } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
+import { toNationalDisplay } from '@/lib/phone';
 import { toast } from '@/components/ui/sonner';
 import type { City, SessionMode, TeachingLanguage } from '@/types';
 
@@ -422,7 +423,12 @@ function BasicProfileForm() {
         </div>
         <div className="space-y-1.5">
           <Label>Phone</Label>
-          <Input defaultValue={user?.phone} />
+          {/* Read-only: a verified number is changed by re-verifying it, not by editing a field.
+              Shown in the local form, as everywhere a person reads their own number. */}
+          <Input value={toNationalDisplay(user?.phone)} readOnly className="bg-secondary/40" />
+          <p className="text-xs text-muted-foreground">
+            Contact support to change your verified number.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label>Email</Label>
@@ -649,7 +655,13 @@ function TutorProfileForm() {
             />
           </Field>
           <Field label="Phone">
-            <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+            {/* Was editable but never submitted — updateTutorProfile carries no phone field, so
+                anything typed here was silently discarded. Read-only is the honest rendering: a
+                verified number changes by re-verification, not by editing a box. */}
+            <Input value={toNationalDisplay(form.phone)} readOnly className="bg-secondary/40" />
+            <p className="text-xs text-muted-foreground">
+              Contact support to change your verified number.
+            </p>
           </Field>
           <Field label="Email">
             <Input

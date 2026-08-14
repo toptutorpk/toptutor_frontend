@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, MapPin, ShieldCheck, Star, Sparkles, ArrowRight } from 'lucide-react';
 import { Container } from '@/components/common/Container';
+import { ArcLights } from '@/components/animations/ArcLights';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -13,6 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CITIES, POPULAR_SUBJECTS } from '@/constants';
+// Imported rather than referenced from /public so Vite fingerprints it — new
+// artwork gets a new URL, so no browser can serve a stale hero from cache.
+import heroImage from '@/assets/hero-classroom.jpg';
 
 const ROTATING = ['Mathematics', 'O-Level Physics', 'Computer Science', 'IELTS Prep', 'Quran & Urdu'];
 
@@ -36,23 +40,29 @@ export function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden pt-12 pb-20 sm:pt-16 lg:pt-20">
-      {/* Background */}
+    <section className="relative overflow-hidden border-b bg-gradient-to-b from-brand-25 via-brand-25/50 to-background pt-14 pb-24 dark:from-secondary/30 dark:via-secondary/10 dark:to-background sm:pt-20 lg:pt-24 lg:pb-28">
+      {/* Background — the same arc network drawn twice: blurred over the copy
+          column so the strokes don't cut through the text, sharp over the
+          visual. Complementary masks cross-fade the two around the midline, so
+          the blur ramps off left-to-right instead of ending at a seam. */}
       <div className="absolute inset-0 -z-10">
-        <div className="bg-grid absolute inset-0 opacity-[0.4] [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
-        <div className="absolute -top-24 left-1/3 h-96 w-96 rounded-full bg-brand-300/30 blur-3xl" />
-        <div className="absolute top-10 right-10 h-72 w-72 rounded-full bg-gold-300/20 blur-3xl" />
+        <div className="absolute inset-0 blur-[2.5px] [mask-image:linear-gradient(to_right,black_42%,transparent_62%)]">
+          <ArcLights className="absolute inset-0" />
+        </div>
+        <div className="absolute inset-0 [mask-image:linear-gradient(to_right,transparent_42%,black_62%)]">
+          <ArcLights className="absolute inset-0" />
+        </div>
       </div>
 
-      <Container className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+      <Container className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
         <div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 rounded-md border bg-background/70 px-3.5 py-1.5 text-sm font-medium shadow-sm backdrop-blur"
+            className="inline-flex items-center gap-2 rounded-md border border-brand-200/70 bg-background/80 px-3.5 py-1.5 text-sm font-medium shadow-sm ring-1 ring-brand-500/5 backdrop-blur dark:border-brand-500/20"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-brand-100 text-brand-700">
+            <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
               <Sparkles className="h-3 w-3" />
             </span>
             Pakistan’s only 7-step verified tutor marketplace
@@ -62,7 +72,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-5 font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl text-balance"
+            className="mt-6 font-display text-4xl font-extrabold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-6xl text-balance"
           >
             Find a tutor you can{' '}
             <span className="text-gradient">actually trust</span>.
@@ -72,7 +82,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.12 }}
-            className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground"
+            className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
           >
             Every tutor is identity-checked, background-verified and demo-tested. Book safely with
             escrow payments — and only pay when the session actually happens.
@@ -84,7 +94,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.18 }}
-            className="mt-7 flex flex-col gap-2 rounded-2xl border bg-card/80 p-2 shadow-glow backdrop-blur sm:flex-row sm:items-center"
+            className="mt-8 flex flex-col gap-2 rounded-2xl border border-border/70 bg-card/90 p-2 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_16px_40px_-16px_rgb(37_99_235/0.35)] ring-1 ring-brand-500/5 backdrop-blur-md sm:flex-row sm:items-center"
           >
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -176,12 +186,23 @@ function HeroVisual() {
       transition={{ duration: 0.7, delay: 0.2 }}
       className="relative mx-auto hidden w-full max-w-md lg:block"
     >
-      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border bg-slate-100 shadow-2xl ring-1 ring-brand-500/10">
+      {/* Soft glow pooled under the card — reads as depth rather than a drop
+          shadow pasted on the background. */}
+      <div
+        aria-hidden="true"
+        className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-brand-400/25 via-brand-300/10 to-gold-300/20 blur-2xl"
+      />
+      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-white/60 bg-slate-100 shadow-[0_2px_4px_rgb(15_23_42/0.04),0_24px_56px_-20px_rgb(15_23_42/0.35)] ring-1 ring-brand-500/10 dark:border-white/10">
+        {/* The photo is landscape and the frame is 4:5, so `cover` shows only
+            the middle ~55% of its width. Biasing the crop to 70% rather than
+            centre keeps the foreground student off the right edge while still
+            leaving the classroom behind her visible on the left. */}
         <img
-          src="https://images.unsplash.com/photo-1571260899304-425eee4c7efc?q=80&w=800&auto=format&fit=crop"
-          alt="A verified tutor teaching a student"
-          className="h-full w-full object-cover"
+          src={heroImage}
+          alt="A student in a classroom holding her notebooks, with classmates studying behind her"
+          className="h-full w-full object-cover object-[70%_50%]"
           loading="eager"
+          decoding="async"
         />
         {/* Subtle bottom gradient only — keeps the photo fully visible while
             giving the floating cards contrast. */}
@@ -192,7 +213,7 @@ function HeroVisual() {
       <motion.div
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -left-6 top-12 w-56 rounded-2xl border bg-card/95 p-4 shadow-xl backdrop-blur"
+        className="absolute -left-6 top-12 w-56 rounded-2xl border border-border/60 bg-card/95 p-4 shadow-[0_1px_2px_rgb(15_23_42/0.05),0_16px_36px_-14px_rgb(15_23_42/0.3)] ring-1 ring-black/[0.02] backdrop-blur-md"
       >
         <div className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
@@ -209,7 +230,7 @@ function HeroVisual() {
       <motion.div
         animate={{ y: [0, 10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-        className="absolute -right-4 bottom-16 w-48 rounded-2xl border bg-card/95 p-4 shadow-xl backdrop-blur"
+        className="absolute -right-4 bottom-16 w-48 rounded-2xl border border-border/60 bg-card/95 p-4 shadow-[0_1px_2px_rgb(15_23_42/0.05),0_16px_36px_-14px_rgb(15_23_42/0.3)] ring-1 ring-black/[0.02] backdrop-blur-md"
       >
         <div className="flex items-center gap-1">
           {Array.from({ length: 5 }).map((_, i) => (

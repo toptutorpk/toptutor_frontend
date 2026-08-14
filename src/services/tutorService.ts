@@ -176,13 +176,20 @@ function detailToTutor(d: BackendDetail): Tutor {
     repeatHireRate: d.repeatHireRate ?? 0,
     totalSessions: d.totalSessions ?? 0,
     reviews: [],
-    availabilitySlots: (d.availability ?? []).map((s) => ({
-      id: s.id,
-      mode: s.mode === 'HOME' ? 'HOME' : 'ONLINE',
-      start: s.start,
-      end: s.end,
-      booked: s.booked,
-    })) as AvailabilityTimeSlot[],
+    // Home visits only. The endpoint no longer returns online ranges — they recur weekly and are
+    // fetched per date — but the filter is explicit so a stray legacy row can't slip through
+    // mislabelled.
+    availabilitySlots: (d.availability ?? [])
+      .filter((s) => s.mode === 'HOME')
+      .map(
+        (s): AvailabilityTimeSlot => ({
+          id: s.id,
+          mode: 'HOME',
+          start: s.start,
+          end: s.end,
+          booked: s.booked,
+        }),
+      ),
     demoAvailable: d.demoAvailable ?? false,
   };
 }
@@ -205,11 +212,33 @@ function toParams(f: SearchFilters): Record<string, unknown> {
   return params;
 }
 
+/**
+ * Whether a tutor may be shown to the public and booked.
+ *
+ * <p>A tutor is publishable only once all seven verification steps have been approved. Anything
+ * short of that — under review, partially verified, rejected — stays off the marketplace: the
+ * promise the platform makes to parents is that every tutor they can reach has been checked, and a
+ * profile that is merely awaiting review has not been.
+ *
+ * <p>This is a display guard, not the security boundary. The server owns that decision; the checks
+ * below exist so an unverified tutor cannot surface even if an endpoint returns one.
+ */
+export function isPublicTutor(tutor: Pick<Tutor, 'verificationStatus'>): boolean {
+  return tutor.verificationStatus === 'verified';
+}
+
 export const tutorService = {
   async list(filters: SearchFilters = {}): Promise<Paginated<Tutor>> {
-    const page = await http.get<BackendPage>('/public/tutors', { params: toParams(filters) });
+    const page = await http.get<BackendPage>('/public/tutors', {
+      // Asked for explicitly rather than relied upon implicitly, so the intent is on the wire and
+      // a backend that honours the flag narrows the result set before it is paged.
+      params: { ...toParams(filters), verifiedOnly: true },
+    });
     return {
-      items: page.items.map(cardToTutor),
+      // Totals are left as the server reported them. Dropping rows here cannot correct a count
+      // computed before the drop, and inventing a corrected one would misreport the pages that
+      // follow. Exact counts require the server to apply the filter.
+      items: page.items.map(cardToTutor).filter(isPublicTutor),
       total: page.total,
       page: page.page,
       pageSize: page.pageSize,
@@ -219,7 +248,7 @@ export const tutorService = {
 
   async featured(): Promise<Tutor[]> {
     const cards = await http.get<BackendCard[]>('/public/tutors/featured', { params: { limit: 6 } });
-    return cards.map(cardToTutor);
+    return cards.map(cardToTutor).filter(isPublicTutor);
   },
 
   async getBySlug(slug: string): Promise<Tutor> {

@@ -22,8 +22,6 @@ interface Arc {
   streak?: {
     /** Arc length of the bright segment, in viewBox units. */
     length: number;
-    /** Seconds for one full lap. */
-    duration: number;
     delay: number;
     tone: 'brand' | 'gold';
   };
@@ -33,21 +31,29 @@ const VIEW_W = 1440;
 const VIEW_H = 720;
 
 /**
+ * viewBox units per second. Lap duration is derived from this rather than set
+ * per arc, so every streak moves at the same apparent speed — a fixed duration
+ * would make the outer (longer) arcs visibly outrun the inner ones.
+ * Lower = calmer.
+ */
+const STREAK_SPEED = 200;
+
+/**
  * Family A bows across the band from a centre below the canvas; family B sweeps
  * the top-right from a centre above it. The two sets crossing is what gives the
  * pattern its depth.
  */
 const ARCS: Arc[] = [
   // ---- Family A — centre below the canvas -------------------------------
-  { cx: 620, cy: 1220, r: 1150, streak: { length: 260, duration: 14, delay: 0, tone: 'gold' } },
+  { cx: 620, cy: 1220, r: 1150, streak: { length: 260, delay: 0, tone: 'gold' } },
   { cx: 620, cy: 1220, r: 1000 },
-  { cx: 620, cy: 1220, r: 850, streak: { length: 200, duration: 18, delay: 3.5, tone: 'brand' } },
+  { cx: 620, cy: 1220, r: 850, streak: { length: 200, delay: 5, tone: 'brand' } },
   { cx: 620, cy: 1220, r: 700 },
 
   // ---- Family B — centre above the canvas, sweeping right ---------------
-  { cx: 1560, cy: -140, r: 1000, streak: { length: 220, duration: 16, delay: 6, tone: 'brand' } },
+  { cx: 1560, cy: -140, r: 1000, streak: { length: 220, delay: 9, tone: 'brand' } },
   { cx: 1560, cy: -140, r: 800 },
-  { cx: 1560, cy: -140, r: 600, streak: { length: 150, duration: 11, delay: 1.5, tone: 'gold' } },
+  { cx: 1560, cy: -140, r: 600, streak: { length: 150, delay: 2.5, tone: 'gold' } },
 ];
 
 const STREAK_COLORS = {
@@ -116,8 +122,9 @@ export function ArcLights({
         ))}
 
         {ARCS.filter((arc) => arc.streak).map((arc) => {
-          const { length, duration, delay, tone: streakTone } = arc.streak!;
+          const { length, delay, tone: streakTone } = arc.streak!;
           const circumference = 2 * Math.PI * arc.r;
+          const duration = circumference / STREAK_SPEED;
           return (
             <circle
               key={`streak-${arc.cx}-${arc.r}`}
@@ -137,7 +144,7 @@ export function ArcLights({
               style={
                 {
                   '--arc-circumference': String(circumference),
-                  '--arc-duration': `${duration}s`,
+                  '--arc-duration': `${duration.toFixed(2)}s`,
                   '--arc-delay': `${delay}s`,
                 } as React.CSSProperties
               }

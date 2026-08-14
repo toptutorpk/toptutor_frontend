@@ -14,6 +14,8 @@ import {
 import { Container } from '@/components/common/Container';
 import { SectionHeading } from '@/components/common/SectionHeading';
 import { Reveal } from '@/components/animations/Reveal';
+import { ArcLights } from '@/components/animations/ArcLights';
+import { DotField } from '@/components/animations/DotField';
 import { StaggerGroup, StaggerItem } from '@/components/animations/Stagger';
 import { AnimatedCounter } from '@/components/animations/AnimatedCounter';
 import { Button } from '@/components/ui/button';
@@ -194,9 +196,12 @@ export function FinalCTA() {
   return (
     <Container>
       <Reveal className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 px-8 py-16 text-center text-white shadow-2xl sm:px-16">
-        <div className="bg-grid absolute inset-0 opacity-10" />
-        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-24 -right-10 h-72 w-72 rounded-full bg-gold-400/20 blur-3xl" />
+        {/* Same stack as the contact page's dark band: lattice, then arcs.
+            The copy sits on a solid gradient, so nothing needs masking out. */}
+        {/* Blurred so the lattice reads as texture behind the copy rather than
+            a crisp grid competing with it. */}
+        <DotField tone="dark" className="blur-[3px]" />
+        <ArcLights tone="dark" className="absolute inset-0" />
         <div className="relative">
           <h2 className="mx-auto max-w-2xl font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
             Ready to find a tutor you can trust?

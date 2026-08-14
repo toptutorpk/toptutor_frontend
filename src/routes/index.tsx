@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { RootLayout } from '@/layouts/RootLayout';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
@@ -19,6 +20,10 @@ const InstitutesPage = lazy(() => import('@/pages/InstitutesPage'));
 const ContactPage = lazy(() => import('@/pages/ContactPage'));
 const SimplePage = lazy(() => import('@/pages/SimplePage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
+
+// Legal — split out so the long documents never load with the marketing pages.
+const PrivacyPolicyPage = lazy(() => import('@/pages/legal/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('@/pages/legal/TermsOfServicePage'));
 
 // Auth
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
@@ -68,7 +73,7 @@ function S({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
 }
 
-export const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     element: <MainLayout />,
     children: [
@@ -85,8 +90,8 @@ export const router = createBrowserRouter([
       { path: '/careers', element: <S><SimplePage title="Careers" /></S> },
       { path: '/contact', element: <S><ContactPage /></S> },
       { path: '/child-safety', element: <S><SimplePage title="Child Safety" /></S> },
-      { path: '/privacy', element: <S><SimplePage title="Privacy Policy" /></S> },
-      { path: '/terms', element: <S><SimplePage title="Terms of Service" /></S> },
+      { path: '/privacy', element: <S><PrivacyPolicyPage /></S> },
+      { path: '/terms', element: <S><TermsOfServicePage /></S> },
       { path: '/report', element: <S><SimplePage title="Report Misconduct" /></S> },
     ],
   },
@@ -168,4 +173,8 @@ export const router = createBrowserRouter([
   { path: '/booking/callback', element: <S><BookingCallback /></S> },
   { path: '/dashboard', element: <Navigate to="/dashboard/student" replace /> },
   { path: '*', element: <S><NotFoundPage /></S> },
-]);
+];
+
+// Every route nests under RootLayout so scroll behaviour is applied once, in
+// one place, rather than being re-mounted by each individual layout.
+export const router = createBrowserRouter([{ element: <RootLayout />, children: routes }]);

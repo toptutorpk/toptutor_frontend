@@ -1,6 +1,7 @@
 import { http, setTokens, clearTokens, getRefreshToken, setStoredToken } from '@/api/client';
 import { env } from '@/config/env';
 import { sleep } from '@/lib/utils';
+import { toE164 } from '@/lib/phone';
 import type { City, User, UserRole } from '@/types';
 
 /* ============================================================================
@@ -243,7 +244,9 @@ function mockUser(partial: {
   return {
     id: 'u_' + Math.random().toString(36).slice(2, 9),
     name: partial.name ?? 'Demo User',
-    phone: partial.phone ?? '+92 300 0000000',
+    // Canonical even in mock data: a fixture in a shape the validator would reject teaches the
+    // wrong format to everything that reads it.
+    phone: partial.phone ?? '+923000000000',
     email: partial.email,
     role: partial.role,
     city: partial.city as City | undefined,
@@ -379,7 +382,10 @@ export const authService = {
       await sleep(500);
       return { sent: true };
     }
-    return http.post<{ sent: boolean }>('/auth/otp/request', { phone });
+    // Canonicalised at the boundary rather than trusted from the caller. An OTP addressed to
+    // 03001234567 and an account keyed by +923001234567 are the same person, and a code sent to
+    // the wrong spelling of a number is indistinguishable from one that never arrived.
+    return http.post<{ sent: boolean }>('/auth/otp/request', { phone: toE164(phone) ?? phone });
   },
 
   async verifyOtp(phone: string, code: string): Promise<AuthResult> {
