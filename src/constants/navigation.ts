@@ -74,6 +74,8 @@ export const TUTOR_DASHBOARD_NAV: NavItem[] = [
   { label: 'Messages', to: '/dashboard/tutor/messages', icon: 'MessageSquare' },
   { label: 'Verification', to: '/dashboard/tutor/verification', icon: 'ShieldCheck' },
   { label: 'Profile', to: '/dashboard/tutor/profile', icon: 'User' },
+  { label: 'Media', to: '/dashboard/tutor/media', icon: 'Image' },
+  { label: 'Settings', to: '/dashboard/tutor/settings', icon: 'Settings' },
 ];
 
 export const ADMIN_NAV: NavItem[] = [

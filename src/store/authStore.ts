@@ -10,7 +10,9 @@ import type { GoogleAuthResult, LoginOutcome, LoginPayload, SignupPayload } from
  * the profile is created.
  */
 export interface TutorOnboardingDraft {
-  tutorId: number;
+  // No id: this draft is created before an account exists (sign-up verification creates it), and
+  // the id it used to carry was never read by anything. Holding one would have meant inventing a
+  // value for the tutor case just to satisfy the shape.
   firstName: string;
   lastName: string;
   email: string;
@@ -90,7 +92,6 @@ export const useAuthStore = create<AuthState>()(
           if (result.status !== 'ACTIVE') {
             set({
               onboarding: {
-                tutorId: result.tutorId,
                 firstName: result.firstName ?? '',
                 lastName: result.lastName ?? '',
                 email: user.email ?? '',

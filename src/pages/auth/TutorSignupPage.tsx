@@ -45,7 +45,7 @@ export default function TutorSignupPage() {
     confirmPassword: '',
   });
   const [showPw, setShowPw] = useState(false);
-  const [tutorId, setTutorId] = useState<number | null>(null);
+  const [registrationId, setRegistrationId] = useState<number | null>(null);
   const [smsCode, setSmsCode] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -89,9 +89,8 @@ export default function TutorSignupPage() {
         phone,
         password: form.password,
       });
-      setTutorId(challenge.tutorId);
+      setRegistrationId(challenge.registrationId);
       setOnboarding({
-        tutorId: challenge.tutorId,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email,
@@ -118,9 +117,9 @@ export default function TutorSignupPage() {
   };
 
   const resend = async (channel: VerificationChannel) => {
-    if (tutorId == null) return;
+    if (registrationId == null) return;
     try {
-      const challenge = await authService.resendTutorOtp({ tutorId, channel });
+      const challenge = await authService.resendTutorOtp({ registrationId, channel });
       showDevCodes(challenge.devPhoneCode, challenge.devEmailCode);
       // Says the old code is dead. Otherwise someone who receives the replacement while still
       // holding the first message has two codes and no reason to prefer either.
@@ -128,6 +127,10 @@ export default function TutorSignupPage() {
         description: 'Your previous code is no longer valid.',
       });
     } catch (e) {
+      if (isExpiredSignUp(e)) {
+        restartExpiredSignUp();
+        return;
+      }
       toast.error('Could not resend code', { description: errorMessage(e) });
     }
   };
@@ -135,20 +138,42 @@ export default function TutorSignupPage() {
   // Step 2 → verify both codes. The account is activated (with an empty profile); we congratulate
   // the tutor and send them to the login page, where they'll build their profile from the dashboard.
   const verifyAndContinue = async () => {
-    if (tutorId == null || smsCode.length !== 6 || emailCode.length !== 6) {
+    if (registrationId == null || smsCode.length !== 6 || emailCode.length !== 6) {
       toast.error('Invalid codes', { description: 'Enter both 6-digit codes to continue.' });
       return;
     }
     setVerifying(true);
     try {
-      await authService.verifyTutorOtp({ tutorId, phoneCode: smsCode, emailCode });
+      await authService.verifyTutorOtp({ registrationId, phoneCode: smsCode, emailCode });
       clearOnboarding();
       setDone(true);
       setTimeout(() => navigate('/login', { replace: true }), 3500);
     } catch (e) {
+      if (isExpiredSignUp(e)) {
+        restartExpiredSignUp();
+        return;
+      }
       toast.error('Verification failed', { description: errorMessage(e) });
       setVerifying(false);
     }
+  };
+
+  /**
+   * A sign-up left long enough is discarded server-side, so the id this tab is holding no longer
+   * refers to anything. Sending them back to the form is the only useful move — the details are
+   * still filled in, so it is a re-submit rather than a re-type, and the email is free again
+   * precisely because nothing was ever registered under it.
+   */
+  const restartExpiredSignUp = () => {
+    setRegistrationId(null);
+    setSmsCode('');
+    setEmailCode('');
+    setVerifying(false);
+    clearOnboarding();
+    setStep(0);
+    toast.error('This sign-up expired', {
+      description: 'Your details are still here — send new codes to continue.',
+    });
   };
 
   if (done) {
@@ -183,13 +208,13 @@ export default function TutorSignupPage() {
       />
 
       {/* Stepper */}
-      <div className="mb-5 flex items-center">
+      <div className="mb-8 flex items-center">
         {STEPS.map((label, i) => (
           <div key={label} className="flex flex-1 items-center last:flex-none">
             <div className="flex flex-col items-center">
               <div
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors',
+                  'flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors',
                   i < step && 'border-brand-500 bg-brand-500 text-white',
                   i === step && 'border-brand-500 text-brand-600',
                   i > step && 'border-input text-muted-foreground',
@@ -208,7 +233,7 @@ export default function TutorSignupPage() {
 
       {/* Step 1 — Account details (all required) */}
       {step === 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="First name" icon={User}>
               <Input
@@ -372,6 +397,17 @@ export default function TutorSignupPage() {
   );
 }
 
+/**
+ * Whether the failure means the staged sign-up is gone rather than the code being wrong.
+ *
+ * <p>A stale code is OTP_EXPIRED and wants a resend; a sign-up that has been swept away is
+ * REGISTRATION_EXPIRED (410 Gone) and wants the form back, because there is nothing left to resend
+ * against. They are separate codes precisely so this can be decided without reading the message.
+ */
+function isExpiredSignUp(e: unknown): boolean {
+  return e instanceof ApiError && e.code === 'REGISTRATION_EXPIRED';
+}
+
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;
   if (e instanceof Error) return e.message;
@@ -419,7 +455,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <Label>{label}</Label>
       {/* Only the control belongs in here. The icon is centred on this box, so it tracks the
           input's centre line only while the input is the sole thing in it. */}

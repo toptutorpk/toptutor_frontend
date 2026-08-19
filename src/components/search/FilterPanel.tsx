@@ -1,8 +1,9 @@
 import { RotateCcw } from 'lucide-react';
 import { cn, formatPKR } from '@/lib/utils';
 import type { SearchFilters } from '@/types';
-import { CITIES, GRADE_LEVELS, POPULAR_SUBJECTS, PRICE_BOUNDS } from '@/constants';
+import { CITIES, GRADE_LEVELS, PRICE_BOUNDS } from '@/constants';
 import { useCatalogs } from '@/hooks/useCatalogs';
+import { SubjectFilter } from '@/components/search/SubjectFilter';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,7 +41,6 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
   const min = filters.minPrice ?? PRICE_BOUNDS.min;
   const max = filters.maxPrice ?? PRICE_BOUNDS.max;
   const catalogs = useCatalogs();
-  const subjects = catalogs.subjects.length ? catalogs.subjects.map((s) => s.value) : POPULAR_SUBJECTS;
   const cities = catalogs.cities.length ? catalogs.cities.map((c) => c.value) : (CITIES as string[]);
   const gradeLevels = catalogs['grade-levels'].length
     ? catalogs['grade-levels'].map((g) => g.value)
@@ -55,25 +55,10 @@ export function FilterPanel({ filters, onChange, onReset }: FilterPanelProps) {
         </Button>
       </div>
 
-      {/* Subject */}
+      {/* Subject — grouped and searchable; a flat dropdown of the full taxonomy is unusable. */}
       <div className="space-y-2">
         <Label>Subject</Label>
-        <Select
-          value={filters.subject ?? 'all'}
-          onValueChange={(v) => onChange({ subject: v === 'all' ? undefined : v })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Any subject" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any subject</SelectItem>
-            {subjects.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SubjectFilter value={filters.subject} onChange={(s) => onChange({ subject: s })} />
       </div>
 
       {/* City */}

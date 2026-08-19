@@ -41,6 +41,7 @@ import {
   ModeToggles,
   SectionTitle,
 } from '@/components/tutor/profileFields';
+import { SubjectPicker } from '@/components/tutor/SubjectPicker';
 import {
   EMPTY_ROW,
   GENDER_OPTIONS,
@@ -388,11 +389,9 @@ export default function TutorProfileCreatePage() {
             <div className="space-y-6">
               <div>
                 <SectionTitle icon={BookOpen} title="Subjects you teach" />
-                <ChipGroup
-                  options={catalog.subjects}
-                  selected={form.subjects}
-                  onToggle={(v) => toggleIn('subjects', v)}
-                />
+                {/* Narrow by category, then pick — a flat chip list is unreadable at this many
+                    subjects, and this is the first form a new tutor ever sees. */}
+                <SubjectPicker selected={form.subjects} onChange={(v) => set('subjects', v)} />
               </div>
               <div>
                 <SectionTitle icon={BookOpen} title="Courses" hint="Add a course code + title; add as many as you like" />

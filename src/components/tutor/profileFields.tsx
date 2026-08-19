@@ -233,27 +233,6 @@ export function CoursesEditor({
 
   return (
     <div className="space-y-3">
-      {courses.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {courses.map((c, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 rounded-md border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
-            >
-              <span className="font-semibold text-brand-700 dark:text-brand-400">{c.abbreviation}</span>
-              <span className="text-muted-foreground">{c.title}</span>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                aria-label={`Remove ${c.abbreviation}`}
-                className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={abbr}
@@ -273,6 +252,36 @@ export function CoursesEditor({
           <Plus className="h-4 w-4" /> Add
         </Button>
       </div>
+      {/* Added courses list below the inputs, mirroring the subject picker above: in both blocks
+          the controls stay put and the collection grows downward. */}
+      {courses.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {courses.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-md border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
+            >
+              <span className="font-semibold text-brand-700 dark:text-brand-400">{c.abbreviation}</span>
+              <span className="text-muted-foreground">{c.title}</span>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                aria-label={`Remove ${c.abbreviation}`}
+                className="flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,6 +46,7 @@ const StudentFavorites = lazy(() => import('@/pages/dashboard/student/Favorites'
 const StudentPayments = lazy(() => import('@/pages/dashboard/student/Payments'));
 const StudentReviews = lazy(() => import('@/pages/dashboard/student/Reviews'));
 const ProfileSettings = lazy(() => import('@/pages/dashboard/ProfileSettings'));
+const AccountSettings = lazy(() => import('@/pages/dashboard/Settings'));
 
 // Tutor dashboard
 const TutorAnalytics = lazy(() => import('@/pages/dashboard/tutor/Analytics'));
@@ -54,6 +55,7 @@ const TutorSchedule = lazy(() => import('@/pages/dashboard/tutor/Schedule'));
 const TutorSessions = lazy(() => import('@/pages/dashboard/tutor/Sessions'));
 const TutorReviews = lazy(() => import('@/pages/dashboard/tutor/Reviews'));
 const TutorVerification = lazy(() => import('@/pages/dashboard/tutor/Verification'));
+const TutorMedia = lazy(() => import('@/pages/dashboard/tutor/Media'));
 const TutorPlaceholder = lazy(() => import('@/pages/dashboard/tutor/TutorPlaceholder'));
 
 // Admin portal
@@ -123,7 +125,7 @@ const routes: RouteObject[] = [
           { path: 'payments', element: <S><StudentPayments /></S> },
           { path: 'reviews', element: <S><StudentReviews /></S> },
           { path: 'profile', element: <S><ProfileSettings /></S> },
-          { path: 'settings', element: <S><ProfileSettings /></S> },
+          { path: 'settings', element: <S><AccountSettings /></S> },
         ],
       },
       {
@@ -139,6 +141,8 @@ const routes: RouteObject[] = [
           { path: 'messages', element: <S><MessagesPage /></S> },
           { path: 'verification', element: <S><TutorVerification /></S> },
           { path: 'profile', element: <S><ProfileSettings /></S> },
+          { path: 'media', element: <S><TutorMedia /></S> },
+          { path: 'settings', element: <S><AccountSettings /></S> },
         ],
       },
     ],

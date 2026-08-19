@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Video, Home, Building2, type LucideIcon } from 'lucide-react';
 import { catalogService, type CatalogMap } from '@/services/catalogService';
@@ -25,6 +26,52 @@ export function useCatalogs(): CatalogMap {
     staleTime: 1000 * 60 * 60, // catalogs rarely change within a session
   });
   return data ?? EMPTY;
+}
+
+/** A category and the subjects filed under it, in the order the server returned them. */
+export interface SubjectGroup {
+  category: string;
+  subjects: string[];
+}
+
+/** Shown for subjects the server sent without a category, rather than dropping them. */
+const UNCATEGORISED = 'Other';
+
+/**
+ * Subjects grouped by category, preserving server order.
+ *
+ * <p>The catalog arrives already sorted by category and then by subject, so grouping is a single
+ * pass and the result needs no sorting of its own — the order tutors see is the order the taxonomy
+ * defines, which puts the subjects most people teach at the top of each list rather than whatever
+ * happens to start with "A".
+ */
+export function useSubjectGroups(): SubjectGroup[] {
+  const c = useCatalogs();
+  return useMemo(() => {
+    const groups: SubjectGroup[] = [];
+    const byCategory = new Map<string, SubjectGroup>();
+    for (const s of c.subjects) {
+      const category = s.category ?? UNCATEGORISED;
+      let group = byCategory.get(category);
+      if (!group) {
+        group = { category, subjects: [] };
+        byCategory.set(category, group);
+        groups.push(group);
+      }
+      group.subjects.push(s.value);
+    }
+    return groups;
+  }, [c.subjects]);
+}
+
+/** Maps a subject name back to its category, for rendering "Category › Subject" on a selection. */
+export function useSubjectCategoryIndex(): Record<string, string> {
+  const c = useCatalogs();
+  return useMemo(() => {
+    const index: Record<string, string> = {};
+    for (const s of c.subjects) index[s.value] = s.category ?? UNCATEGORISED;
+    return index;
+  }, [c.subjects]);
 }
 
 /** Catalog options shaped for the tutor profile forms, with graceful fallbacks to constants. */

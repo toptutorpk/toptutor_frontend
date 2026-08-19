@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Bell,
-  Lock,
-  Globe,
   Trash2,
   User,
   MapPin,
@@ -14,15 +11,12 @@ import {
   Video,
   Wallet,
   Loader2,
-  ShieldCheck,
 } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -40,7 +34,6 @@ import {
   ModeToggles,
   SectionTitle,
 } from '@/components/tutor/profileFields';
-import { MediaUploadField } from '@/components/tutor/MediaUploadField';
 import { AvatarUpload } from '@/components/common/AvatarUpload';
 import {
   EMPTY_ROW,
@@ -49,21 +42,14 @@ import {
 } from '@/components/tutor/profileFieldOptions';
 import { GRADE_LEVELS, PRICE_BOUNDS } from '@/constants';
 import { useProfileCatalogs } from '@/hooks/useCatalogs';
-import { useNavigate } from 'react-router-dom';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useAuthStore } from '@/store/authStore';
 import { authService, type Child, type Course } from '@/services/authService';
-import { accountService } from '@/services/accountService';
+import { type ContactChannel } from '@/services/accountService';
 import { ApiError, getAccessToken } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
-import { toNationalDisplay } from '@/lib/phone';
+import { SubjectPicker } from '@/components/tutor/SubjectPicker';
+import { VerifiedContactField } from '@/components/account/VerifiedContactField';
+import { ContactChangeDialog } from '@/components/account/ContactChangeDialog';
 import { toast } from '@/components/ui/sonner';
 import type { City, SessionMode, TeachingLanguage } from '@/types';
 
@@ -73,320 +59,16 @@ export default function ProfileSettings() {
 
   return (
     <div>
-      <PageHeader title="Profile & Settings" description="Manage your account, notifications and security." />
-      <Tabs defaultValue="profile">
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="profile">
-          {isTutor ? (
-            <TutorProfileForm />
-          ) : (
-            <div className="space-y-6">
-              <BasicProfileForm />
-              {user?.role === 'parent' && <ParentChildren />}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <div className="rounded-2xl border bg-card p-6 shadow-soft">
-            {[
-              { icon: Bell, label: 'Session reminders', desc: 'SMS & push 24h and 1h before sessions', on: true },
-              { icon: Globe, label: 'New tutor matches', desc: 'When a tutor matches your requirement', on: true },
-              { icon: Bell, label: 'Promotions & tips', desc: 'Occasional product updates and offers', on: false },
-            ].map((n, i) => (
-              <div key={n.label}>
-                {i > 0 && <Separator className="my-4" />}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
-                      <n.icon className="h-4 w-4 text-muted-foreground" />
-                    </span>
-                    <div>
-                      <div className="font-medium">{n.label}</div>
-                      <div className="text-sm text-muted-foreground">{n.desc}</div>
-                    </div>
-                  </div>
-                  <Switch defaultChecked={n.on} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="security">
-          <div className="space-y-6">
-            <ChangePasswordCard />
-            <SecuritySettings />
-          </div>
-        </TabsContent>
-      </Tabs>
+      <PageHeader title="Profile" description="Manage the details shown on your public profile." />
+      {isTutor ? (
+        <TutorProfileForm />
+      ) : (
+        <div className="space-y-6">
+          <BasicProfileForm />
+          {user?.role === 'parent' && <ParentChildren />}
+        </div>
+      )}
     </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Change password (all roles with a password)                               */
-/* -------------------------------------------------------------------------- */
-function ChangePasswordCard() {
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const clearError = () => setError(null);
-
-  const submit = async () => {
-    if (!current || !next || !confirm) {
-      setError('Please fill in all three fields.');
-      return;
-    }
-    if (next.length < 8) {
-      setError('Your new password must be at least 8 characters.');
-      return;
-    }
-    if (next !== confirm) {
-      setError('The new passwords don’t match.');
-      return;
-    }
-    if (next === current) {
-      setError('Your new password must be different from the current one.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await accountService.changePassword(current, next);
-      toast.success('Password changed', { description: 'Use your new password next time you log in.' });
-      setCurrent('');
-      setNext('');
-      setConfirm('');
-    } catch (e) {
-      // e.g. "Current password is incorrect" from the server.
-      setError(e instanceof ApiError || e instanceof Error ? e.message : 'Could not change your password.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border bg-card p-6 shadow-soft">
-      <h3 className="flex items-center gap-2 font-display font-bold">
-        <Lock className="h-4 w-4" /> Change password
-      </h3>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2 sm:max-w-sm">
-          <Label htmlFor="cur-pw">Current password</Label>
-          <Input
-            id="cur-pw"
-            type="password"
-            autoComplete="off"
-            placeholder="Enter your current password"
-            value={current}
-            onChange={(e) => {
-              setCurrent(e.target.value);
-              clearError();
-            }}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="new-pw">New password</Label>
-          <Input
-            id="new-pw"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Choose a new password"
-            value={next}
-            onChange={(e) => {
-              setNext(e.target.value);
-              clearError();
-            }}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="conf-pw">Confirm new password</Label>
-          <Input
-            id="conf-pw"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Re-enter your new password"
-            value={confirm}
-            onChange={(e) => {
-              setConfirm(e.target.value);
-              clearError();
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-          />
-        </div>
-      </div>
-      {error && <p className="mt-3 text-sm font-medium text-red-500">{error}</p>}
-      <Button variant="gradient" className="mt-4" disabled={saving} onClick={submit}>
-        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-        Update password
-      </Button>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Security — two-factor auth + delete account (all roles)                   */
-/* -------------------------------------------------------------------------- */
-function SecuritySettings() {
-  const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
-  const user = useAuthStore((s) => s.user);
-  const [twoFactor, setTwoFactor] = useState<boolean | null>(null);
-  const [savingTfa, setSavingTfa] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [hasPassword, setHasPassword] = useState(true); // assume until /me confirms
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    accountService
-      .me()
-      .then((m) => {
-        if (cancelled) return;
-        setTwoFactor(m.twoFactorEnabled);
-        setHasPassword(m.hasPassword);
-      })
-      .catch(() => !cancelled && setTwoFactor(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const toggleTfa = async (next: boolean) => {
-    setSavingTfa(true);
-    try {
-      await accountService.setTwoFactor(next);
-      setTwoFactor(next);
-      toast.success(next ? 'Two-factor authentication enabled' : 'Two-factor authentication disabled', {
-        description: next ? 'You’ll enter an emailed code each time you log in.' : undefined,
-      });
-    } catch (e) {
-      toast.error('Could not update two-factor authentication', {
-        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
-      });
-    } finally {
-      setSavingTfa(false);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (hasPassword && !deletePassword) {
-      setDeleteError('Enter your password to confirm.');
-      return;
-    }
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await accountService.deleteAccount(deletePassword);
-      toast.success('Your account has been deleted');
-      logout();
-      navigate('/', { replace: true });
-    } catch (e) {
-      // Surface "Incorrect password" (and anything else) inline so the dialog stays open.
-      setDeleteError(e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.');
-      setDeleting(false);
-    }
-  };
-
-  const closeConfirm = (open: boolean) => {
-    setConfirmOpen(open);
-    if (!open) {
-      setDeletePassword('');
-      setDeleteError(null);
-    }
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between rounded-2xl border bg-card p-6 shadow-soft">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
-            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-          </span>
-          <div>
-            <h3 className="font-display font-bold">Two-factor authentication</h3>
-            <p className="text-sm text-muted-foreground">
-              Require a one-time code emailed to {user?.email ?? 'your email'} each time you log in.
-            </p>
-          </div>
-        </div>
-        <Switch checked={!!twoFactor} disabled={twoFactor === null || savingTfa} onCheckedChange={toggleTfa} />
-      </div>
-
-      <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-500/20 dark:bg-red-500/10">
-        <div>
-          <h3 className="font-display font-bold text-red-700 dark:text-red-400">Delete account</h3>
-          <p className="text-sm text-red-600/80 dark:text-red-400/70">
-            Permanently delete your account. This can’t be undone.
-          </p>
-        </div>
-        <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
-          <Trash2 className="h-4 w-4" /> Delete
-        </Button>
-      </div>
-
-      <Dialog open={confirmOpen} onOpenChange={closeConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
-            <DialogDescription>
-              This permanently deactivates your account and removes your personal details. You’ll be signed
-              out immediately and won’t be able to log back in. Past bookings and receipts are retained for
-              records but are no longer linked to you. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-
-          {hasPassword && (
-            <div className="space-y-2 rounded-xl border bg-secondary/30 p-4">
-              <Label htmlFor="delete-password" className="text-sm font-medium">
-                Enter your password to confirm
-              </Label>
-              <Input
-                id="delete-password"
-                type="password"
-                autoFocus
-                placeholder="••••••••"
-                value={deletePassword}
-                onChange={(e) => {
-                  setDeletePassword(e.target.value);
-                  setDeleteError(null);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && confirmDelete()}
-                aria-invalid={!!deleteError}
-                className="mt-1"
-              />
-              {deleteError && <p className="pt-0.5 text-xs font-medium text-red-500">{deleteError}</p>}
-            </div>
-          )}
-          {!hasPassword && deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => closeConfirm(false)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleting || (hasPassword && !deletePassword)}
-            >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Yes, delete my account
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -412,6 +94,16 @@ function ProfileHeader({ url, onChange }: { url?: string; onChange?: (url: strin
 /* -------------------------------------------------------------------------- */
 function BasicProfileForm() {
   const user = useAuthStore((s) => s.user);
+  const setSession = useAuthStore((s) => s.setSession);
+  const [changingChannel, setChangingChannel] = useState<ContactChannel | null>(null);
+
+  // The store is the only copy of these on screen, so it has to be told about the change or the
+  // field keeps showing the old value until the next reload.
+  const applyChange = (details: { phone: string; email?: string }) => {
+    if (!user) return;
+    setSession({ ...user, phone: details.phone, email: details.email }, getAccessToken() ?? '');
+  };
+
   return (
     <div className="rounded-2xl border bg-card p-6 shadow-soft">
       <ProfileHeader />
@@ -421,19 +113,8 @@ function BasicProfileForm() {
           <Label>Full name</Label>
           <Input defaultValue={user?.name} />
         </div>
-        <div className="space-y-1.5">
-          <Label>Phone</Label>
-          {/* Read-only: a verified number is changed by re-verifying it, not by editing a field.
-              Shown in the local form, as everywhere a person reads their own number. */}
-          <Input value={toNationalDisplay(user?.phone)} readOnly className="bg-secondary/40" />
-          <p className="text-xs text-muted-foreground">
-            Contact support to change your verified number.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Email</Label>
-          <Input defaultValue={user?.email} placeholder="you@email.com" />
-        </div>
+        <VerifiedContactField channel="PHONE" value={user?.phone} onEdit={setChangingChannel} />
+        <VerifiedContactField channel="EMAIL" value={user?.email} onEdit={setChangingChannel} />
         <div className="space-y-1.5">
           <Label>City</Label>
           <Input defaultValue={user?.city ?? 'Karachi'} />
@@ -446,6 +127,13 @@ function BasicProfileForm() {
       <Button variant="gradient" className="mt-6" onClick={() => toast.success('Profile saved')}>
         Save changes
       </Button>
+
+      <ContactChangeDialog
+        channel={changingChannel}
+        currentValue={changingChannel === 'PHONE' ? user?.phone : user?.email}
+        onClose={() => setChangingChannel(null)}
+        onChanged={applyChange}
+      />
     </div>
   );
 }
@@ -485,6 +173,7 @@ function TutorProfileForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [changingChannel, setChangingChannel] = useState<ContactChannel | null>(null);
   const [form, setForm] = useState<TutorProfileState>({
     name: user?.name ?? '',
     phone: user?.phone ?? '',
@@ -654,22 +343,11 @@ function TutorProfileForm() {
               aria-invalid={!!errors.name}
             />
           </Field>
-          <Field label="Phone">
-            {/* Was editable but never submitted — updateTutorProfile carries no phone field, so
-                anything typed here was silently discarded. Read-only is the honest rendering: a
-                verified number changes by re-verification, not by editing a box. */}
-            <Input value={toNationalDisplay(form.phone)} readOnly className="bg-secondary/40" />
-            <p className="text-xs text-muted-foreground">
-              Contact support to change your verified number.
-            </p>
-          </Field>
-          <Field label="Email">
-            <Input
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              placeholder="you@email.com"
-            />
-          </Field>
+          {/* Both were editable boxes that updateTutorProfile never submitted, so anything typed
+              was silently discarded. They are verified facts, changed through the code flow rather
+              than by typing — the pencil opens the only thing that can actually change them. */}
+          <VerifiedContactField channel="PHONE" value={form.phone} onEdit={setChangingChannel} />
+          <VerifiedContactField channel="EMAIL" value={form.email} onEdit={setChangingChannel} />
           <Field label="Years of experience">
             <Input
               type="number"
@@ -733,16 +411,6 @@ function TutorProfileForm() {
             </Select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Cover image" hint="A banner shown at the top of your public profile.">
-              <MediaUploadField
-                kind="image"
-                category="cover-image"
-                value={form.coverUrl || undefined}
-                onChange={(url) => set('coverUrl', url ?? '')}
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
             <Field
               label="Professional headline"
               hint="A short tagline shown under your name."
@@ -777,11 +445,8 @@ function TutorProfileForm() {
       {/* What you teach */}
       <div className="rounded-2xl border bg-card p-6 shadow-soft">
         <SectionTitle icon={BookOpen} title="Subjects you teach" />
-        <ChipGroup
-          options={catalog.subjects}
-          selected={form.subjects}
-          onToggle={(v) => toggleIn('subjects', v)}
-        />
+        {/* Narrow by category, then pick — a flat chip list is unreadable at this many subjects. */}
+        <SubjectPicker selected={form.subjects} onChange={(v) => set('subjects', v)} />
         <Separator className="my-5" />
         <SectionTitle icon={BookOpen} title="Courses" hint="Add a course code + title; add as many as you like" />
         <CoursesEditor courses={form.courses} onChange={(c) => set('courses', c)} />
@@ -866,6 +531,17 @@ function TutorProfileForm() {
           Save changes
         </Button>
       </div>
+
+      {/* Writes straight back into the form so the field shows the new value at once; the tutor
+          profile is loaded once and would otherwise keep displaying the old one until a reload. */}
+      <ContactChangeDialog
+        channel={changingChannel}
+        currentValue={changingChannel === 'PHONE' ? form.phone : form.email}
+        onClose={() => setChangingChannel(null)}
+        onChanged={(details) =>
+          setForm((f) => ({ ...f, phone: details.phone, email: details.email ?? f.email }))
+        }
+      />
     </div>
   );
 }

@@ -17,9 +17,16 @@ import type { City, User, UserRole } from '@/types';
 export type TutorAccountStatus = 'PENDING_VERIFICATION' | 'VERIFIED' | 'ACTIVE' | 'SUSPENDED';
 export type VerificationChannel = 'PHONE' | 'EMAIL';
 
+/**
+ * Identifies a sign-up in progress — not an account.
+ *
+ * <p>Submitting the form no longer creates anything in the accounts table; the backend stages the
+ * details and issues codes against a `registrationId`, and an account is created only once both
+ * codes are verified. That is what makes an abandoned sign-up retryable with the same email and
+ * phone: there is nothing holding them.
+ */
 export interface OtpChallenge {
-  tutorId: number;
-  status: TutorAccountStatus;
+  registrationId: number;
   phoneMasked?: string;
   emailMasked?: string;
   otpExpiresInSeconds: number;
@@ -263,20 +270,25 @@ export const authService = {
     return http.post<OtpChallenge>('/tutors/register', payload);
   },
 
-  /** Step 2 — verify both OTPs; stores the short-lived onboarding token. */
+  /**
+   * Step 2 — verify both OTPs. This is the call that actually creates the account.
+   *
+   * <p>Up to this point the sign-up exists only as a staged attempt, so a tutor who never reaches
+   * here has no account and can start again with the same email and phone.
+   */
   async verifyTutorOtp(input: {
-    tutorId: number;
+    registrationId: number;
     phoneCode: string;
     emailCode: string;
   }): Promise<VerifyOtpResult> {
-    // Verification now creates an empty profile and activates the account; the client then routes
-    // the tutor to the login page (no immediate secured call), so we don't store the token here.
+    // Verification creates the account and an empty profile; the client then routes the tutor to
+    // the login page (no immediate secured call), so we don't store the token here.
     return http.post<VerifyOtpResult>('/tutors/verify-otp', input);
   },
 
   /** Re-send a single channel's OTP (PHONE or EMAIL). */
   async resendTutorOtp(input: {
-    tutorId: number;
+    registrationId: number;
     channel: VerificationChannel;
   }): Promise<OtpChallenge> {
     return http.post<OtpChallenge>('/tutors/resend-otp', input);
