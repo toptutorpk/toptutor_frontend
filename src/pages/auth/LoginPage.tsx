@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { Clock, Eye, EyeOff, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,10 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string })?.from ?? '/dashboard/tutor';
+  // Set when the session ended on its own rather than by signing out. Without it an expiry looks
+  // identical to having never signed in, and the person is left guessing why they are back here.
+  const sessionEndedMessage = (location.state as { sessionEndedMessage?: string })
+    ?.sessionEndedMessage;
 
   // When the account has 2FA on, login returns a challenge and we switch to the code step.
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -150,6 +154,16 @@ export default function LoginPage() {
           </>
         }
       />
+
+      {/* Above the form, not a toast: a toast disappears, and this is the answer to "why am I
+          looking at the login page again?" — which is asked after the toast would have gone. */}
+      {sessionEndedMessage && (
+        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{sessionEndedMessage}</span>
+        </div>
+      )}
+
       <SocialButtons />
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div className="space-y-1.5">

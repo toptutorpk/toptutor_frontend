@@ -14,6 +14,7 @@ const HomePage = lazy(() => import('@/pages/HomePage'));
 const TutorListingPage = lazy(() => import('@/pages/TutorListingPage'));
 const TutorProfilePage = lazy(() => import('@/pages/TutorProfilePage'));
 const SubjectsPage = lazy(() => import('@/pages/SubjectsPage'));
+const SubjectRedirectPage = lazy(() => import('@/pages/SubjectRedirectPage'));
 const HowItWorksPage = lazy(() => import('@/pages/HowItWorksPage'));
 const PricingPage = lazy(() => import('@/pages/PricingPage'));
 const InstitutesPage = lazy(() => import('@/pages/InstitutesPage'));
@@ -83,7 +84,7 @@ const routes: RouteObject[] = [
       { path: '/tutors', element: <S><TutorListingPage /></S> },
       { path: '/tutors/:slug', element: <S><TutorProfilePage /></S> },
       { path: '/subjects', element: <S><SubjectsPage /></S> },
-      { path: '/subjects/:slug', element: <S><TutorListingPage /></S> },
+      { path: '/subjects/:slug', element: <S><SubjectRedirectPage /></S> },
       { path: '/how-it-works', element: <S><HowItWorksPage /></S> },
       { path: '/pricing', element: <S><PricingPage /></S> },
       { path: '/institutes', element: <S><InstitutesPage /></S> },

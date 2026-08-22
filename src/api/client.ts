@@ -97,6 +97,38 @@ export function clearTokens() {
   setTokens(null, null);
 }
 
+// ---- Session-ended notification ---------------------------------------------
+
+/** Why the session ended, so the login screen can say something specific. */
+export type SessionEndedReason = 'IDLE_TIMEOUT' | 'SESSION_EXPIRED' | 'INVALID';
+
+type SessionEndedHandler = (reason: SessionEndedReason) => void;
+const sessionEndedHandlers = new Set<SessionEndedHandler>();
+
+/**
+ * Subscribes to sessions ending for a reason other than the user asking.
+ *
+ * <p>An event rather than a direct call because this module cannot reach the auth store: the store
+ * imports the services, which import this client, and closing that loop would be a cycle. The
+ * listener also has to be inside the router to navigate, which this file is not.
+ */
+export function onSessionEnded(handler: SessionEndedHandler): () => void {
+  sessionEndedHandlers.add(handler);
+  return () => sessionEndedHandlers.delete(handler);
+}
+
+/**
+ * Drops the tokens and tells the app the session is over.
+ *
+ * <p>Clearing storage was never enough on its own. The auth store keeps its own persisted
+ * `isAuthenticated`, so a silent token clear left the app convinced someone was signed in while
+ * every request came back 401 — a dashboard that renders but does nothing, with no explanation.
+ */
+export function endSession(reason: SessionEndedReason) {
+  clearTokens();
+  sessionEndedHandlers.forEach((handler) => handler(reason));
+}
+
 /** Back-compat helper used by a few callers that only care about the access token. */
 export function setStoredToken(token: string | null) {
   setTokens(token);
@@ -126,8 +158,17 @@ async function refreshAccessToken(): Promise<string | null> {
     const tokens = res.data.data;
     setTokens(tokens.accessToken, tokens.refreshToken);
     return tokens.accessToken;
-  } catch {
-    clearTokens();
+  } catch (e) {
+    // The server distinguishes "you were away too long" from "this token is not valid", and the
+    // difference is the whole message the person gets on the login screen.
+    const code = (e as AxiosError<ApiEnvelope<unknown>>)?.response?.data?.error?.code;
+    endSession(
+      code === 'SESSION_IDLE_TIMEOUT'
+        ? 'IDLE_TIMEOUT'
+        : code === 'SESSION_EXPIRED'
+          ? 'SESSION_EXPIRED'
+          : 'INVALID',
+    );
     return null;
   }
 }
@@ -150,7 +191,8 @@ apiClient.interceptors.response.use(
         original.headers.set?.('Authorization', `Bearer ${newToken}`);
         return apiClient(original);
       }
-      clearTokens();
+      // refreshAccessToken has already ended the session and said why; clearing again here would
+      // only fire a second, less specific notification.
     }
 
     // Normalise the backend error envelope into a typed ApiError.

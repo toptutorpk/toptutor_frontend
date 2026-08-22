@@ -33,6 +33,14 @@ interface AuthState {
   setOnboarding: (draft: TutorOnboardingDraft) => void;
   clearOnboarding: () => void;
   logout: () => void;
+  /**
+   * Clears the session without calling the server.
+   *
+   * <p>For sessions the server has already ended — expired or revoked. Distinct from
+   * {@link AuthState#logout}, which additionally revokes the refresh token: there is nothing left
+   * to revoke here, and the call would only fail.
+   */
+  endSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -118,6 +126,9 @@ export const useAuthStore = create<AuthState>()(
       },
       logout() {
         authService.logout();
+        set({ user: null, token: null, isAuthenticated: false, onboarding: null });
+      },
+      endSession() {
         set({ user: null, token: null, isAuthenticated: false, onboarding: null });
       },
     }),

@@ -1,4 +1,5 @@
 import { Outlet, ScrollRestoration } from 'react-router-dom';
+import { SessionWatcher } from '@/components/common/SessionWatcher';
 
 /**
  * Router-level shell mounted above every route.
@@ -28,6 +29,8 @@ export function RootLayout() {
   return (
     <>
       <ScrollRestoration />
+      {/* Above the routes so an expiry anywhere in the app lands on the login screen. */}
+      <SessionWatcher />
       <Outlet />
     </>
   );

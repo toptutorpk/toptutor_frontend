@@ -11,6 +11,8 @@ export const queryKeys = {
   subjects: {
     all: ['subjects'] as const,
     detail: (slug: string) => ['subjects', slug] as const,
+    /** Categories + subjects + live tutor counts, as the browse page needs them. */
+    browse: ['subjects', 'browse'] as const,
   },
   bookings: { all: ['bookings'] as const },
   conversations: { all: ['conversations'] as const },

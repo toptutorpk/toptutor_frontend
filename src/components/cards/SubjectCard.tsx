@@ -6,8 +6,12 @@ import type { Subject } from '@/types';
 
 export function SubjectCard({ subject }: { subject: Subject }) {
   return (
+    // Straight to the filtered listing, by name: that is the key the search API matches on, and
+    // it is what makes the tutor count on this card mean something. Linking to /subjects/<slug>
+    // instead lands on the listing with no filter applied at all — every tutor, whatever the card
+    // said. The pretty URL still works; it redirects here.
     <Link
-      to={`/subjects/${subject.slug}`}
+      to={`/tutors?subject=${encodeURIComponent(subject.name)}`}
       className="group relative flex flex-col items-start gap-3 overflow-hidden rounded-2xl border bg-card p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
     >
       <div

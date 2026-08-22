@@ -340,3 +340,27 @@
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
+
+/* Entrance for long grids.
+ *
+ * The framer-motion stagger used elsewhere gives every child a delay proportional to its index,
+ * which is fine for the eight or twelve items those grids hold. The subject catalogue holds nearly
+ * three hundred: at 80ms apiece the last tile was scheduled twenty-two seconds out, and since every
+ * tile starts invisible the grid simply looked empty.
+ *
+ * This does the same thing in CSS with the delay capped by the caller, and without mounting a
+ * motion component per tile — which is also what made rendering the full list slow. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-rise-in {
+  animation: rise-in 0.4s cubic-bezier(0.21, 0.47, 0.32, 0.98) backwards;
+}
+
+/* Honour a reduced-motion preference: show the tiles, just do not move them. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in {
+    animation: none;
+  }
+}
