@@ -44,22 +44,22 @@ export const VERIFICATION_STEPS: Omit<VerificationStep, 'status'>[] = [
   {
     id: 1,
     label: 'Identity Verification',
-    description: 'CNIC validated against NADRA records with biometric selfie match.',
+    description: 'CNIC number, issue date and both sides of the card checked against each other.',
   },
   {
     id: 2,
-    label: 'Education Credential Check',
+    label: 'Educational Background Check',
     description: 'Degrees & certificates manually verified with the issuing institution.',
   },
   {
     id: 3,
     label: 'Criminal Background Check',
-    description: 'Third-party / government background check for child-safety assurance.',
+    description: 'We run a criminal background check on every tutor for child-safety assurance.',
   },
   {
     id: 4,
     label: 'Teaching Experience Proof',
-    description: 'Experience letters and employment references confirmed.',
+    description: 'Experience letters and employment references confirmed where provided.',
   },
   {
     id: 5,
@@ -68,8 +68,8 @@ export const VERIFICATION_STEPS: Omit<VerificationStep, 'status'>[] = [
   },
   {
     id: 6,
-    label: 'Video Demo Session',
-    description: '5-10 minute demo lesson reviewed for clarity & teaching quality.',
+    label: 'Introduction Video',
+    description: '1-2 minute video reviewed to confirm a real person matching the CNIC photo.',
   },
   {
     id: 7,

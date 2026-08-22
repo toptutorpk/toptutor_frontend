@@ -16,6 +16,7 @@ import {
   Eye,
   Clock,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +55,11 @@ export default function AdminTutorReview() {
   });
 
   // Reject dialog target: a single document, or the whole application.
-  const [reject, setReject] = useState<{ kind: 'doc' | 'app'; slotKey?: string; label?: string } | null>(null);
+  // 'flag' shares this dialog because it needs the same thing: a reason, typed once, before an
+  // irreversible-feeling decision. Only the wording and the endpoint differ.
+  const [reject, setReject] = useState<
+    { kind: 'doc' | 'app' | 'flag'; slotKey?: string; label?: string } | null
+  >(null);
   const [notes, setNotes] = useState('');
 
   const invalidate = () => {
@@ -70,17 +75,27 @@ export default function AdminTutorReview() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () =>
-      reject?.kind === 'doc'
-        ? adminService.reviewDocument(tutorId, reject.slotKey as string, 'REJECT', notes)
-        : adminService.decide(tutorId, 'REJECT', notes),
+    mutationFn: () => {
+      if (reject?.kind === 'doc') {
+        return adminService.reviewDocument(tutorId, reject.slotKey as string, 'REJECT', notes);
+      }
+      // FLAG is not REJECT: rejection asks the tutor to fix and resubmit, which is the wrong
+      // instruction for a background-check finding they cannot answer.
+      return adminService.decide(tutorId, reject?.kind === 'flag' ? 'FLAG' : 'REJECT', notes);
+    },
     onSuccess: () => {
       invalidate();
-      toast.success(reject?.kind === 'doc' ? 'Document rejected' : 'Application rejected');
+      toast.success(
+        reject?.kind === 'doc'
+          ? 'Document rejected'
+          : reject?.kind === 'flag'
+            ? 'Background check flagged — the tutor stays unverified'
+            : 'Application rejected',
+      );
       setReject(null);
       setNotes('');
     },
-    onError: () => toast.error('Could not record rejection'),
+    onError: () => toast.error('Could not record the decision'),
   });
 
   const approveApp = useMutation({
@@ -220,6 +235,17 @@ export default function AdminTutorReview() {
             Approving the whole application verifies the tutor and locks every document.
           </p>
           <div className="flex flex-1 justify-end gap-2">
+            {/* Sits beside Reject, not inside the Background step, because it decides the whole
+                application: a flagged tutor is not verified regardless of their documents. */}
+            <Button
+              variant="outline"
+              className="text-red-600"
+              disabled={rejectMutation.isPending || verified}
+              onClick={() => setReject({ kind: 'flag' })}
+              title="Record that the criminal background check was not cleared"
+            >
+              <ShieldAlert className="h-4 w-4" /> Flag background check
+            </Button>
             <Button
               variant="outline"
               className="text-red-600"
@@ -240,26 +266,51 @@ export default function AdminTutorReview() {
       <Dialog open={reject != null} onOpenChange={(o) => { if (!o && !rejectMutation.isPending) { setReject(null); setNotes(''); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{reject?.kind === 'doc' ? `Reject "${reject.label}"` : 'Reject application'}</DialogTitle>
+            <DialogTitle>
+              {reject?.kind === 'doc'
+                ? `Reject "${reject.label}"`
+                : reject?.kind === 'flag'
+                  ? 'Flag background check'
+                  : 'Reject application'}
+            </DialogTitle>
             <DialogDescription>
               {reject?.kind === 'doc'
                 ? 'The tutor will be asked to re-upload this document.'
-                : 'The tutor will be notified that their application needs changes.'}
+                : reject?.kind === 'flag'
+                  ? 'The tutor stays unverified and never appears in listings. Nothing is published — the reason is visible only to the admin team and to the tutor themselves.'
+                  : 'The tutor will be notified that their application needs changes.'}
             </DialogDescription>
           </DialogHeader>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Reason shown to the tutor (e.g. “CNIC photo is blurry — please re-scan”)…"
+            placeholder={
+              reject?.kind === 'flag'
+                ? 'Reason for the team record (e.g. “Check returned an unspent conviction”)…'
+                : 'Reason shown to the tutor (e.g. “CNIC photo is blurry — please re-scan”)…'
+            }
             className="min-h-[90px]"
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReject(null); setNotes(''); }} disabled={rejectMutation.isPending}>
               Cancel
             </Button>
-            <Button variant="outline" className="text-red-600" disabled={rejectMutation.isPending} onClick={() => rejectMutation.mutate()}>
-              {rejectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-              Confirm rejection
+            {/* A flag needs a reason: it is the only record of why someone was turned away, and an
+                empty one leaves the next reviewer nothing to go on if the tutor appeals. */}
+            <Button
+              variant="outline"
+              className="text-red-600"
+              disabled={rejectMutation.isPending || (reject?.kind === 'flag' && !notes.trim())}
+              onClick={() => rejectMutation.mutate()}
+            >
+              {rejectMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : reject?.kind === 'flag' ? (
+                <ShieldAlert className="h-4 w-4" />
+              ) : (
+                <X className="h-4 w-4" />
+              )}
+              {reject?.kind === 'flag' ? 'Confirm flag' : 'Confirm rejection'}
             </Button>
           </DialogFooter>
         </DialogContent>

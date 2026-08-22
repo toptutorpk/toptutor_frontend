@@ -91,7 +91,7 @@ export const adminService = {
   parameters: () => http.get<SystemParameter[]>('/admin/parameters'),
   updateParameter: (key: string, value: string) =>
     http.put<SystemParameter[]>(`/admin/parameters/${key}?value=${encodeURIComponent(value)}`),
-  decide: (id: number, decision: 'APPROVE' | 'REJECT', notes?: string) =>
+  decide: (id: number, decision: 'APPROVE' | 'REJECT' | 'FLAG', notes?: string) =>
     http.post<AdminTutorDetail>(`/admin/tutors/${id}/decision`, { decision, notes }),
   /** Approve or reject a single uploaded document. */
   reviewDocument: (id: number, slotKey: string, decision: 'APPROVE' | 'REJECT', notes?: string) =>

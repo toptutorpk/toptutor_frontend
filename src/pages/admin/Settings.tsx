@@ -25,12 +25,12 @@ export default function AdminSettings() {
         <Panel title="Verification requirements" subtitle="Which steps are mandatory to get listed">
           <div className="p-5">
             {[
-              ['Identity (CNIC + selfie)', true],
-              ['Education credentials', true],
+              ['Identity (CNIC front, back & details)', true],
+              ['Educational background check', true],
               ['Criminal background check', true],
               ['Teaching experience proof', false],
               ['Subject proficiency test', false],
-              ['Video demo session', true],
+              ['Introduction video', true],
             ].map(([label, on], i) => (
               <div key={label as string}>
                 {i > 0 && <Separator className="my-3" />}

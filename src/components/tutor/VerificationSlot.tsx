@@ -23,6 +23,74 @@ import { ApiError } from '@/api/client';
 import { toast } from '@/components/ui/sonner';
 import { cn } from '@/lib/utils';
 
+/**
+ * The upload rules, mirrored from the server so a file that will be refused is refused here first.
+ *
+ * <p>Duplicating a server rule is usually a smell, but not for uploads: without a check on this
+ * side the tutor waits for a 3 MB photo to finish travelling before being told it was never going
+ * to be accepted, and on a phone connection that wait is the whole experience of the step.
+ */
+const IMAGE_TYPES = ['image/jpeg', 'image/png'];
+const PDF_TYPE = 'application/pdf';
+/** Photographs: small enough that a reviewer working through a queue is not kept waiting. */
+const MAX_IMAGE_BYTES = 500 * 1024;
+/** PDFs get more room — a multi-page certificate legitimately needs it, a photo of one does not. */
+const MAX_PDF_BYTES = 1024 * 1024;
+
+function formatBytes(bytes: number): string {
+  // One decimal at most: the point is "a bit over the limit", and 1.1005859375MB says that worse
+  // than 1.1MB does.
+  if (bytes >= 1024 * 1024) {
+    const mb = bytes / (1024 * 1024);
+    return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`;
+  }
+  return `${Math.round(bytes / 1024)}KB`;
+}
+
+/**
+ * Why this file cannot be uploaded, or null if it can.
+ *
+ * <p>Returns the reason rather than a boolean so the message can name the actual problem — the
+ * wrong format and the right format-but-too-big need different answers.
+ */
+function rejectReason(file: File, kind: Slot['kind']): string | null {
+  if (kind === 'video') return null; // videos keep the server's own, much larger, limits
+
+  const isPdf = file.type === PDF_TYPE;
+  const isImage = IMAGE_TYPES.includes(file.type);
+
+  if (kind === 'image' && !isImage) {
+    return 'This slot takes a JPG or PNG image.';
+  }
+  if (kind !== 'image' && !isImage && !isPdf) {
+    return 'This slot takes a PDF, JPG or PNG.';
+  }
+  if (isPdf && kind === 'image') {
+    return 'This slot takes a JPG or PNG image, not a PDF.';
+  }
+
+  const limit = isPdf ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
+  if (file.size > limit) {
+    return `This file is ${formatBytes(Math.round(file.size / 1024) * 1024)}. The limit is ${formatBytes(limit)} for ${isPdf ? 'a PDF' : 'an image'}.`;
+  }
+  return null;
+}
+
+/**
+ * Marks a slot the tutor may skip.
+ *
+ * <p>Optionality used to be written into the label itself — "Teaching certificate (optional)" —
+ * while required slots carried a red asterisk, so the same fact was told two different ways in the
+ * same row. One quiet tag against the asterisk reads as a pair.
+ */
+function OptionalTag() {
+  return (
+    <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      Optional
+    </span>
+  );
+}
+
 /** Small status chip for a single document. */
 function StatusChip({ status }: { status?: DocStatus }) {
   if (!status || status === 'PENDING') return null;
@@ -51,8 +119,22 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   const uploaded = Boolean(slot.url);
   const locked = slot.locked; // approved → cannot be changed
   const rejected = slot.status === 'REJECTED';
+  // Spelled out rather than image/* — the server takes JPEG and PNG only, and a wildcard invites
+  // the file picker to offer HEIC, WebP and GIF that it will then refuse after the upload.
   const accept =
-    slot.kind === 'video' ? 'video/*' : slot.kind === 'image' ? 'image/*' : 'image/*,application/pdf';
+    slot.kind === 'video'
+      ? 'video/*'
+      : slot.kind === 'image'
+        ? IMAGE_TYPES.join(',')
+        : [...IMAGE_TYPES, PDF_TYPE].join(',');
+
+  /** What this slot will take, phrased for the box itself. */
+  const acceptHint =
+    slot.kind === 'video'
+      ? 'MP4 or WebM'
+      : slot.kind === 'image'
+        ? `JPG or PNG · max ${formatBytes(MAX_IMAGE_BYTES)}`
+        : `PDF, JPG or PNG · ${formatBytes(MAX_IMAGE_BYTES)} image, ${formatBytes(MAX_PDF_BYTES)} PDF`;
 
   const pick = () => {
     if (locked) return;
@@ -60,6 +142,13 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   };
 
   const handleFile = async (file: File) => {
+    // Checked before the preview is generated and before anything is sent: an oversized file should
+    // not briefly appear in the box as though it had been accepted.
+    const problem = rejectReason(file, slot.kind);
+    if (problem) {
+      toast.error('That file can’t be uploaded', { description: problem });
+      return;
+    }
     if (slot.kind !== 'document') {
       setLocalPreview((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -121,7 +210,11 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   // ---- Image slot: ATM/credit-card sized box --------------------------------
   if (slot.kind === 'image') {
     return (
-      <div className="w-full max-w-[320px]">
+      // Fixed cap rather than filling its column: this box now sits in a flex row next to other
+      // content (e.g. the Identity step's CNIC fields) rather than a grid it needs to share equal
+      // columns with, so a card-sized cap is what keeps it from stretching to whatever width its
+      // row happens to have.
+      <div className="w-full max-w-[326px]">
         <div
           className={cn(
             'group relative aspect-[1.586] overflow-hidden rounded-2xl border-2 transition-colors',
@@ -141,7 +234,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             >
               <UploadCloud className="h-7 w-7" />
               <span className="text-sm font-semibold">Upload {slot.label}</span>
-              <span className="text-[11px]">JPG or PNG</span>
+              <span className="text-[11px]">{acceptHint}</span>
             </button>
           )}
 
@@ -176,11 +269,12 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             </div>
           )}
         </div>
-        <div className="mt-1.5 flex items-center justify-center gap-1.5 text-center">
+        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5 text-center">
           <p className="text-xs font-medium">
             {slot.label}
             {slot.required && <span className="text-red-500"> *</span>}
           </p>
+          {!slot.required && <OptionalTag />}
           {uploaded && !slot.status && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
         </div>
         {rejectionNote}
@@ -274,10 +368,11 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
               {slot.label}
               {slot.required && <span className="text-red-500"> *</span>}
             </p>
+            {!slot.required && <OptionalTag />}
             <StatusChip status={slot.status} />
           </div>
           <p className="text-xs text-muted-foreground">
-            {uploading ? `Uploading ${progress}%` : uploaded ? 'Uploaded' : 'PDF or image · not uploaded'}
+            {uploading ? `Uploading ${progress}%` : uploaded ? 'Uploaded' : acceptHint}
           </p>
         </div>
         {uploaded && slot.url && (

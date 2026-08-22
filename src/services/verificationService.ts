@@ -1,7 +1,22 @@
 import { http } from '@/api/client';
 
 export type SlotKind = 'image' | 'document' | 'video';
-export type StepStatus = 'NOT_STARTED' | 'UNDER_REVIEW' | 'PASSED' | 'REJECTED';
+
+/**
+ * `IN_PROGRESS` means started but not yet submitted — a step holding draft uploads used to report
+ * `NOT_STARTED`, which contradicted the file sitting on screen.
+ *
+ * <p>`FLAGGED` is the background check not clearing. Deliberately not `REJECTED`: a rejection asks
+ * the tutor to correct something, and there is nothing here for them to correct.
+ */
+export type StepStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'READY'
+  | 'UNDER_REVIEW'
+  | 'PASSED'
+  | 'REJECTED'
+  | 'FLAGGED';
 export type DocStatus = 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
 export type ApplicationStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'CHANGES_REQUESTED';
 
@@ -35,6 +50,12 @@ export interface VerificationView {
   completedCount: number;
   totalSteps: number;
   steps: VerificationStep[];
+  /** CNIC as typed into the Identity step, so the form reopens filled in. */
+  cnicNumber?: string;
+  /** ISO date the CNIC was issued. */
+  cnicIssueDate?: string;
+  /** What the tutor pays towards the background check we run for them, in PKR. */
+  backgroundCheckFee: number;
 }
 
 export const verificationService = {
@@ -60,7 +81,13 @@ export const verificationService = {
   },
 
   /** Submits the completed application for the admin's final review. */
-  async submit(): Promise<VerificationView> {
-    return http.post<VerificationView>('/verification/submit');
+  /**
+   * Submits the application, carrying the CNIC details with it.
+   *
+   * <p>They travel with the submission rather than on their own save, so the whole application is
+   * written in one transaction and cannot be sent with half of the Identity step filled in.
+   */
+  async submit(cnicNumber: string, cnicIssueDate: string): Promise<VerificationView> {
+    return http.post<VerificationView>('/verification/submit', { cnicNumber, cnicIssueDate });
   },
 };
