@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { format, isValid, parseISO } from 'date-fns';
 import {
   ShieldCheck,
   ChevronDown,
   Check,
   Loader2,
   Info,
-  GraduationCap,
   Clock,
   AlertTriangle,
   Send,
+  Lock,
+  CheckCircle2,
+  Copy,
+  Maximize2,
 } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
 import { Progress } from '@/components/ui/progress';
@@ -17,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -27,6 +32,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { VerificationSlot } from '@/components/tutor/VerificationSlot';
+import { QrCode } from '@/components/common/QrCode';
+import { BACKGROUND_CHECK_PAYMENT } from '@/constants/payment';
 import {
   verificationService,
   type ApplicationStatus,
@@ -122,7 +129,9 @@ export default function TutorVerification() {
   if (isLoading || !data) {
     return (
       <div>
-        <PageHeader title="Get Verified" description="Complete all 7 steps to earn your green Verified Badge." />
+        {/* No count until the steps arrive: the number comes from the server's catalog, and a
+            hard-coded one here would be a second source of truth to keep in step with it. */}
+        <PageHeader title="Get Verified" description="Complete every step to earn your green Verified Badge." />
         <div className="flex items-center justify-center rounded-2xl border bg-card p-12 shadow-soft">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -154,7 +163,10 @@ export default function TutorVerification() {
 
   return (
     <div>
-      <PageHeader title="Get Verified" description="Complete all 7 steps to earn your green Verified Badge." />
+      <PageHeader
+        title="Get Verified"
+        description={`Complete all ${data.totalSteps} steps to earn your green Verified Badge.`}
+      />
 
       {/* Progress banner */}
       <div className="mb-4 rounded-2xl border bg-gradient-to-br from-brand-600 to-brand-800 p-6 text-white shadow-soft">
@@ -298,14 +310,6 @@ function StepCard({
 
           {step.key === 'ADMIN_APPROVAL' ? (
             <FinalReviewSection view={view} identity={identity} onSubmitted={onChanged} />
-          ) : step.slots.length === 0 ? (
-            <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/30 p-4 text-sm text-muted-foreground">
-              <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-              <span>
-                Your subject proficiency test is scheduled online — we’ll email you a link. No upload
-                needed here.
-              </span>
-            </div>
           ) : step.key === 'IDENTITY' ? (
             // Fields sit beside the cards rather than below them: the two CNIC images are a fixed,
             // card-sized pair, so the rest of the row would otherwise sit empty on anything wider
@@ -321,9 +325,16 @@ function StepCard({
                   <VerificationSlot key={slot.key} slot={slot} onChanged={onChanged} />
                 ))}
               </div>
+              {/* Read off the step's own status, not only the server's `identityLocked` flag. That
+                  status is what draws the "Verified" chip at the top of this very card, so deriving
+                  from it means the chip and the state of the fields can never disagree — a card
+                  headed Verified with two live inputs under it is the one combination that must be
+                  impossible. The server flag is kept alongside it as its own answer, and is what
+                  the submit endpoint enforces. */}
               <IdentityFields
                 value={identity}
                 onChange={onIdentityChange}
+                locked={step.status === 'PASSED' || view.identityLocked}
                 className="min-w-[240px] flex-1"
               />
             </div>
@@ -497,14 +508,21 @@ function FinalReviewSection({
  * (`items-stretch`, the default) already sizes this column to match the image cards beside it, and
  * `justify-between` spreads the two fields across that height instead of leaving a gap under a
  * shorter column.
+ *
+ * <p>Once the step is approved the fields are replaced by a settled, read-only pair rather than
+ * being greyed out in place: a disabled input still looks like somewhere text goes, and reads as
+ * something temporarily unavailable. These details are finished, which is a different thing, and
+ * the lock and emerald tint say so in the same vocabulary the approved documents already use.
  */
 function IdentityFields({
   value,
   onChange,
+  locked,
   className,
 }: {
   value: IdentityDraft;
   onChange: (next: IdentityDraft) => void;
+  locked: boolean;
   className?: string;
 }) {
   /** Inserts the dashes while typing, so what is sent always matches what is printed. */
@@ -517,6 +535,35 @@ function IdentityFields({
   // Complain only once there is something to complain about — a rule shown against an untouched
   // field reads as an error the tutor has already made.
   const cnicBad = value.cnicNumber.length > 0 && !CNIC_RE.test(value.cnicNumber);
+
+  if (locked) {
+    return (
+      <div className={cn('flex flex-col gap-3', className)}>
+        <ApprovedDetail label="CNIC number" value={value.cnicNumber} />
+        <ApprovedDetail
+          label="Date of issue"
+          // Falls back to the raw ISO string rather than rendering "Invalid Date" if the stored
+          // value is ever unparseable — an approved field must always show what was approved.
+          value={
+            value.cnicIssueDate
+              ? formatIssueDate(value.cnicIssueDate) ?? value.cnicIssueDate
+              : '—'
+          }
+        />
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          <span>
+            These details were checked against your CNIC and approved, so they can no longer be
+            changed. Contact{' '}
+            <a href="mailto:support@toptutor.pk" className="font-medium underline underline-offset-4">
+              support@toptutor.pk
+            </a>{' '}
+            if something here is wrong.
+          </span>
+        </p>
+      </div>
+    );
+  }
 
   return (
     // Fields group at the top rather than spreading down the column. justify-between pushed them to
@@ -543,40 +590,203 @@ function IdentityFields({
         <Label htmlFor="cnic-issued">
           Date of issue <span className="text-red-500">*</span>
         </Label>
-        <Input
+        {/* A card issued years ago is the normal case here, so the picker's month/year drill-down
+            matters more than it would on a "pick a day next week" field. Local date, not
+            toISOString(): that converts to UTC first, and east of Greenwich it hands back
+            yesterday for the first hours of every day — which would bar a card issued today. */}
+        <DatePicker
           id="cnic-issued"
-          type="date"
           value={value.cnicIssueDate}
-          max={new Date().toISOString().slice(0, 10)}
-          onChange={(e) => onChange({ ...value, cnicIssueDate: e.target.value })}
+          max={format(new Date(), 'yyyy-MM-dd')}
+          onChange={(next) => onChange({ ...value, cnicIssueDate: next })}
+          placeholder="Select the issue date"
+          hint="The date printed on the front of your CNIC, under “Date of Issue”."
         />
       </div>
     </div>
   );
 }
 
-function BackgroundFeePanel({ fee }: { fee: number }) {
+/** The same 'd MMMM yyyy' the picker shows, or null if the stored value cannot be read. */
+function formatIssueDate(iso: string): string | null {
+  const parsed = parseISO(iso);
+  return isValid(parsed) ? format(parsed, 'd MMMM yyyy') : null;
+}
+
+/**
+ * One settled CNIC detail.
+ *
+ * <p>Built to the same height and radius as the input it stands in for, so approving the step
+ * changes what the column says rather than how the panel is laid out.
+ */
+function ApprovedDetail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-brand-200/70 bg-brand-25 p-4 text-sm dark:border-brand-500/25 dark:bg-brand-500/10">
-      <p className="font-display font-bold">Background check fee — {formatPKR(fee)}</p>
-      <p className="mt-1 text-muted-foreground">
-        We run the criminal background check on your behalf. Transfer the fee, then upload your
-        receipt below — our team takes it from there.
-      </p>
-      {/* Placeholder account details: replace with the real ones before this goes live. */}
-      <dl className="mt-3 grid gap-1.5 text-xs sm:grid-cols-2">
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">Account title</dt>
-          <dd className="font-semibold">TopTutor (Pvt) Ltd</dd>
+    <div className="space-y-1.5">
+      <span className="text-sm font-medium leading-none">{label}</span>
+      <div className="flex h-11 items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+        <span className="truncate text-sm font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">
+          {value || '—'}
+        </span>
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How to pay the background-check fee: the merchant QR, the account details behind it, and what
+ * happens after.
+ *
+ * <p>Laid out as scan-or-type rather than one list of numbers. Most tutors are on a phone and will
+ * scan; the ones on a desktop cannot, so the same account has to be readable as text beside the
+ * code. Both halves are the same payment — the panel says so once and does not repeat itself.
+ */
+function BackgroundFeePanel({ fee }: { fee: number }) {
+  const [enlarged, setEnlarged] = useState(false);
+  const { accountTitle, tillId, ussdCode, qrPayload } = BACKGROUND_CHECK_PAYMENT;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-secondary/40 px-5 py-4">
+        <div>
+          <h4 className="font-display text-base font-bold tracking-tight">Background check fee</h4>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            We run the criminal background check on your behalf. Pay the fee, then upload your
+            receipt below — our team takes it from there.
+          </p>
         </div>
-        <div className="flex gap-2">
-          <dt className="text-muted-foreground">JazzCash</dt>
-          <dd className="font-semibold tabular-nums">0300-0000000</dd>
+        {/* The amount reads off the server's figure, not the QR's: they must agree, and this is
+            the one that the finance side reconciles against. */}
+        <span className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 font-display text-sm font-bold text-white tabular-nums">
+          {formatPKR(fee)}
+        </span>
+      </div>
+
+      {/* items-center, not the default stretch: the QR is a fixed square and the column beside it
+          is a stack of text, so left to themselves the two hang from the top edge and the shorter
+          one leaves the row looking unfinished at the bottom. Centring settles them against each
+          other whichever ends up taller. */}
+      <div className="flex flex-col gap-6 p-5 sm:flex-row sm:items-center">
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          {/* White plate in both themes — the QR must never be asked to invert. */}
+          <button
+            type="button"
+            onClick={() => setEnlarged(true)}
+            className="rounded-xl border bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Enlarge the payment QR code"
+          >
+            {/* 224px. The static payload needs a 57×57 symbol, so this renders about 3.5 device
+                pixels per module — measured to read reliably from 160px up, with headroom left for
+                a phone camera held at an angle. */}
+            <QrCode value={qrPayload} label="JazzCash payment QR code" className="h-56 w-56" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setEnlarged(true)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
+            <Maximize2 className="h-3 w-3" /> Enlarge to scan
+          </button>
         </div>
-      </dl>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Transfers are reconciled by hand; allow up to 2 working days after you upload the receipt.
-      </p>
+
+        <div className="min-w-0 flex-1 space-y-4">
+          <div>
+            <p className="text-sm font-semibold">Scan to pay</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Open JazzCash, or any bank app that supports Raast QR, and scan the code. The QR
+              carries no amount — enter {formatPKR(fee)} yourself.
+            </p>
+          </div>
+
+          {/* A bordered, divided list rather than loose label/value pairs. Spread across an open
+              column the two halves of a row drift apart and stop reading as one fact; inside a
+              ruled row the gap is the point. */}
+          <dl className="divide-y overflow-hidden rounded-xl border bg-secondary/30">
+            <DetailRow label="Account title" value={accountTitle} />
+            {/* Rendered only when a Till ID is configured — an empty row would read as a detail
+                the tutor had failed to find. */}
+            {tillId && <DetailRow label="Till ID" value={tillId} copyable />}
+            <DetailRow label="Amount" value={formatPKR(fee)} />
+          </dl>
+
+          {ussdCode && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">No camera?</span> Dial{' '}
+              <span className="font-semibold tabular-nums text-foreground">{ussdCode}</span> and
+              enter the Till ID to pay from your JazzCash account.
+            </p>
+          )}
+
+          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Transfers are reconciled by hand; allow up to 2 working days after you upload the
+              receipt. Keep the transaction ID from your payment app — it is what we match against.
+            </span>
+          </p>
+        </div>
+      </div>
+
+      <Dialog open={enlarged} onOpenChange={setEnlarged}>
+        {/* Wider than the panel needs, because this is the one that gets scanned: at this size the
+            symbol renders around 4 pixels per module, which is what a phone camera wants. */}
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scan to pay {formatPKR(fee)}</DialogTitle>
+            <DialogDescription>{accountTitle}</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border bg-white p-4">
+            <QrCode value={qrPayload} label="JazzCash payment QR code" className="h-full w-full" />
+          </div>
+          <p className="text-center text-xs text-muted-foreground">JazzCash · Raast</p>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** One account detail, with an optional copy button for the values people mistype. */
+function DetailRow({
+  label,
+  value,
+  copyable,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error('Could not copy', { description: 'Please select the number and copy it.' });
+    }
+  };
+
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3 px-3.5 py-2.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-sm font-semibold tabular-nums">{value}</span>
+        {copyable && (
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={`Copy ${label}`}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-600" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+      </dd>
     </div>
   );
 }

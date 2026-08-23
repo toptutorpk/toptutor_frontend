@@ -65,7 +65,7 @@ export function Hero() {
             <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
               <Sparkles className="h-3 w-3" />
             </span>
-            Pakistan’s only 7-step verified tutor marketplace
+            Pakistan’s only 6-step verified tutor marketplace
           </motion.div>
 
           <motion.h1
@@ -220,7 +220,7 @@ function HeroVisual() {
             <ShieldCheck className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-sm font-bold">7/7 Verified</p>
+            <p className="text-sm font-bold">6/6 Verified</p>
             <p className="text-xs text-muted-foreground">CNIC · Degree · Background</p>
           </div>
         </div>

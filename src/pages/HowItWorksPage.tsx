@@ -10,10 +10,12 @@ export default function HowItWorksPage() {
   return (
     <div className="flex flex-col gap-24 py-12">
       <Container>
+        {/* Counted off the step list rather than written out, so the page can never advertise a
+            number of checks that does not match the ones printed underneath it. */}
         <SectionHeading
           eyebrow="How it works"
-          title="Safety you can see, in 7 steps"
-          description="Before any tutor appears on TopTutor, they pass a rigorous 7-step verification. No exceptions."
+          title={`Safety you can see, in ${VERIFICATION_STEPS.length} steps`}
+          description={`Before any tutor appears on TopTutor, they pass a rigorous ${VERIFICATION_STEPS.length}-step verification. No exceptions.`}
         />
         <div className="mx-auto mt-12 max-w-3xl space-y-4">
           {VERIFICATION_STEPS.map((step, i) => (
@@ -37,7 +39,8 @@ export default function HowItWorksPage() {
             <div className="flex items-center gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
               <ShieldCheck className="h-8 w-8 text-emerald-600" />
               <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                Only after all 7 steps pass does a tutor receive the green Verified Badge.
+                Only after all {VERIFICATION_STEPS.length} steps pass does a tutor receive the green
+                Verified Badge.
               </p>
             </div>
           </Reveal>

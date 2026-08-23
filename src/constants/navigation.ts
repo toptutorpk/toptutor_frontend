@@ -97,3 +97,20 @@ export const DASHBOARD_NAV_BY_ROLE: Partial<Record<UserRole, NavItem[]>> = {
   tutor: TUTOR_DASHBOARD_NAV,
   admin: ADMIN_NAV,
 };
+
+/**
+ * The portal each role belongs to — the single source of truth for "where does this account live".
+ * Both the navigation links and the route guard read it, so a link can never point a tutor at a
+ * section the guard would bounce them out of.
+ */
+export const DASHBOARD_HOME_BY_ROLE: Record<UserRole, string> = {
+  student: '/dashboard/student',
+  parent: '/dashboard/student',
+  institute: '/dashboard/student',
+  tutor: '/dashboard/tutor',
+  admin: '/admin',
+};
+
+export function dashboardHome(role?: UserRole): string {
+  return (role && DASHBOARD_HOME_BY_ROLE[role]) ?? '/dashboard/student';
+}

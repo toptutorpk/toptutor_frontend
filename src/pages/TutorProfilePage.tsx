@@ -277,7 +277,7 @@ export default function TutorProfilePage() {
               {/* Verification */}
               <TabsContent value="verification">
                 <Section
-                  title="7-Step verification"
+                  title="6-Step verification"
                   subtitle="Every credential below was manually checked by our trust & safety team."
                 >
                   <VerificationSteps steps={tutor.verificationSteps} />
@@ -625,7 +625,7 @@ function UnlistedTutor() {
           This profile isn’t available
         </h1>
         <p className="mt-3 max-w-md text-muted-foreground">
-          Only tutors who have completed our full 7-step verification appear on TopTutor. This
+          Only tutors who have completed our full 6-step verification appear on TopTutor. This
           profile isn’t among them right now — every tutor you can browse and book has been
           identity-checked, background-checked and demo-tested.
         </p>

@@ -33,7 +33,7 @@ export default function WelcomePage() {
         className="mx-auto mt-3 max-w-sm text-muted-foreground"
       >
         {isTutor
-          ? 'Your tutor account is ready. Complete your 7-step verification to start receiving bookings.'
+          ? 'Your tutor account is ready. Complete your 6-step verification to start receiving bookings.'
           : 'Your account is ready. Let’s find the perfect verified tutor for you.'}
       </motion.p>
 

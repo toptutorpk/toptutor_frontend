@@ -29,7 +29,6 @@ export default function AdminSettings() {
               ['Educational background check', true],
               ['Criminal background check', true],
               ['Teaching experience proof', false],
-              ['Subject proficiency test', false],
               ['Introduction video', true],
             ].map(([label, on], i) => (
               <div key={label as string}>

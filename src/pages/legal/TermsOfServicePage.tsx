@@ -172,10 +172,9 @@ const clauses: LegalClause[] = [
     body: (
       <>
         <P>
-          Every Tutor bearing a Verified Badge has completed our seven-step process: identity
+          Every Tutor bearing a Verified Badge has completed our six-step process: identity
           verification, educational credential checks, a criminal background check, confirmation of
-          teaching experience, a subject proficiency assessment, a recorded demonstration lesson, and
-          a final human review.
+          teaching experience, a recorded introduction video, and a final human review.
         </P>
         <Callout tone="warning" title="Verification reduces risk. It does not eliminate it.">
           Verification confirms that specified checks were completed and passed at a point in time,

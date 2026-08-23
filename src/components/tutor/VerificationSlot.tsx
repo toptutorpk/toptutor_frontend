@@ -23,19 +23,7 @@ import { ApiError } from '@/api/client';
 import { toast } from '@/components/ui/sonner';
 import { cn } from '@/lib/utils';
 
-/**
- * The upload rules, mirrored from the server so a file that will be refused is refused here first.
- *
- * <p>Duplicating a server rule is usually a smell, but not for uploads: without a check on this
- * side the tutor waits for a 3 MB photo to finish travelling before being told it was never going
- * to be accepted, and on a phone connection that wait is the whole experience of the step.
- */
-const IMAGE_TYPES = ['image/jpeg', 'image/png'];
 const PDF_TYPE = 'application/pdf';
-/** Photographs: small enough that a reviewer working through a queue is not kept waiting. */
-const MAX_IMAGE_BYTES = 500 * 1024;
-/** PDFs get more room — a multi-page certificate legitimately needs it, a photo of one does not. */
-const MAX_PDF_BYTES = 1024 * 1024;
 
 function formatBytes(bytes: number): string {
   // One decimal at most: the point is "a bit over the limit", and 1.1005859375MB says that worse
@@ -47,29 +35,86 @@ function formatBytes(bytes: number): string {
   return `${Math.round(bytes / 1024)}KB`;
 }
 
+/** MIME type → the name a person would call the file. */
+const TYPE_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF',
+  'image/jpeg': 'JPG',
+  'image/png': 'PNG',
+  'image/webp': 'WebP',
+  'video/mp4': 'MP4',
+  'video/webm': 'WebM',
+  'video/quicktime': 'MOV',
+};
+
+/**
+ * What `kind` used to imply, for a server that does not send the slot's upload rules yet.
+ *
+ * <p>Not a guess so much as the previous contract written down. Without it, a front-end deployed
+ * ahead of its backend reads `undefined.split` and takes the whole verification page down — and
+ * these rules were correct for every slot that existed before the two were separated, so an older
+ * server paired with this fallback still behaves exactly as it did.
+ */
+const LEGACY_ACCEPT: Record<Slot['kind'], string> = {
+  image: 'image/jpeg,image/png',
+  document: 'application/pdf,image/jpeg,image/png',
+  video: 'video/mp4,video/webm,video/quicktime',
+};
+const LEGACY_MAX_BYTES = 500 * 1024;
+const LEGACY_PDF_MAX_BYTES = 1024 * 1024;
+
+function acceptedTypes(slot: Slot): string[] {
+  return (slot.accept || LEGACY_ACCEPT[slot.kind]).split(',').filter(Boolean);
+}
+
+function maxBytesOf(slot: Slot): number {
+  return slot.maxBytes ?? LEGACY_MAX_BYTES;
+}
+
+function pdfMaxBytesOf(slot: Slot): number {
+  return slot.pdfMaxBytes ?? (slot.kind === 'document' ? LEGACY_PDF_MAX_BYTES : LEGACY_MAX_BYTES);
+}
+
+/** "JPG or PNG", "PDF, JPG or PNG" — the formats named the way the tutor's file dialog names them. */
+function formatList(slot: Slot): string {
+  const names = [...new Set(acceptedTypes(slot).map((t) => TYPE_LABELS[t] ?? t))];
+  if (names.length <= 1) return names[0] ?? 'a file';
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+}
+
+/** What this slot will take, phrased for the box itself. */
+function acceptHint(slot: Slot): string {
+  const formats = formatList(slot);
+  if (slot.kind === 'video') return formats;
+  // Two caps only where they actually differ — repeating the same number twice reads as a rule
+  // with an exception when there isn't one.
+  return pdfMaxBytesOf(slot) !== maxBytesOf(slot)
+    ? `${formats} · ${formatBytes(maxBytesOf(slot))} image, ${formatBytes(pdfMaxBytesOf(slot))} PDF`
+    : `${formats} · max ${formatBytes(maxBytesOf(slot))}`;
+}
+
 /**
  * Why this file cannot be uploaded, or null if it can.
  *
  * <p>Returns the reason rather than a boolean so the message can name the actual problem — the
  * wrong format and the right format-but-too-big need different answers.
+ *
+ * <p>The rules come from the slot, which carries the server's own upload category, rather than
+ * being restated here. Duplicating a server rule is usually a smell, but not for uploads: without
+ * a check on this side the tutor waits for a 3 MB photo to finish travelling before being told it
+ * was never going to be accepted, and on a phone connection that wait is the whole experience of
+ * the step. Reading the server's answer rather than guessing it gets the warning without the drift
+ * — this used to infer the formats from `kind`, so a slot laid out as a row was assumed to take
+ * PDFs whether or not the server agreed.
  */
-function rejectReason(file: File, kind: Slot['kind']): string | null {
-  if (kind === 'video') return null; // videos keep the server's own, much larger, limits
+function rejectReason(file: File, slot: Slot): string | null {
+  if (slot.kind === 'video') return null; // videos keep the server's own, much larger, limits
+
+  if (!acceptedTypes(slot).includes(file.type)) {
+    return `This slot takes ${formatList(slot)}.`;
+  }
 
   const isPdf = file.type === PDF_TYPE;
-  const isImage = IMAGE_TYPES.includes(file.type);
-
-  if (kind === 'image' && !isImage) {
-    return 'This slot takes a JPG or PNG image.';
-  }
-  if (kind !== 'image' && !isImage && !isPdf) {
-    return 'This slot takes a PDF, JPG or PNG.';
-  }
-  if (isPdf && kind === 'image') {
-    return 'This slot takes a JPG or PNG image, not a PDF.';
-  }
-
-  const limit = isPdf ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
+  const limit = isPdf ? pdfMaxBytesOf(slot) : maxBytesOf(slot);
   if (file.size > limit) {
     return `This file is ${formatBytes(Math.round(file.size / 1024) * 1024)}. The limit is ${formatBytes(limit)} for ${isPdf ? 'a PDF' : 'an image'}.`;
   }
@@ -119,22 +164,10 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   const uploaded = Boolean(slot.url);
   const locked = slot.locked; // approved → cannot be changed
   const rejected = slot.status === 'REJECTED';
-  // Spelled out rather than image/* — the server takes JPEG and PNG only, and a wildcard invites
-  // the file picker to offer HEIC, WebP and GIF that it will then refuse after the upload.
-  const accept =
-    slot.kind === 'video'
-      ? 'video/*'
-      : slot.kind === 'image'
-        ? IMAGE_TYPES.join(',')
-        : [...IMAGE_TYPES, PDF_TYPE].join(',');
-
-  /** What this slot will take, phrased for the box itself. */
-  const acceptHint =
-    slot.kind === 'video'
-      ? 'MP4 or WebM'
-      : slot.kind === 'image'
-        ? `JPG or PNG · max ${formatBytes(MAX_IMAGE_BYTES)}`
-        : `PDF, JPG or PNG · ${formatBytes(MAX_IMAGE_BYTES)} image, ${formatBytes(MAX_PDF_BYTES)} PDF`;
+  // The server's own list, spelled out rather than image/* — a wildcard invites the file picker to
+  // offer HEIC, WebP and GIF that the upload will then refuse.
+  const accept = acceptedTypes(slot).join(',');
+  const hint = acceptHint(slot);
 
   const pick = () => {
     if (locked) return;
@@ -144,7 +177,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   const handleFile = async (file: File) => {
     // Checked before the preview is generated and before anything is sent: an oversized file should
     // not briefly appear in the box as though it had been accepted.
-    const problem = rejectReason(file, slot.kind);
+    const problem = rejectReason(file, slot);
     if (problem) {
       toast.error('That file can’t be uploaded', { description: problem });
       return;
@@ -234,7 +267,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             >
               <UploadCloud className="h-7 w-7" />
               <span className="text-sm font-semibold">Upload {slot.label}</span>
-              <span className="text-[11px]">{acceptHint}</span>
+              <span className="text-[11px]">{hint}</span>
             </button>
           )}
 
@@ -372,7 +405,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             <StatusChip status={slot.status} />
           </div>
           <p className="text-xs text-muted-foreground">
-            {uploading ? `Uploading ${progress}%` : uploaded ? 'Uploaded' : acceptHint}
+            {uploading ? `Uploading ${progress}%` : uploaded ? 'Uploaded' : hint}
           </p>
         </div>
         {uploaded && slot.url && (

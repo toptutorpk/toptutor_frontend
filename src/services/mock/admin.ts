@@ -129,7 +129,6 @@ const STEP_LABELS = [
   ['EDUCATION', 'Education'],
   ['BACKGROUND', 'Background'],
   ['EXPERIENCE', 'Experience'],
-  ['PROFICIENCY', 'Proficiency'],
   ['DEMO', 'Demo'],
   ['ADMIN_APPROVAL', 'Final'],
 ];
@@ -144,10 +143,16 @@ export const APPROVAL_QUEUE: ApprovalItem[] = ADMIN_TUTORS.filter(
   city: t.city,
   subjects: t.subjects,
   submittedAt: `${3 + i} days ago`,
+  // A queue entry is a part-reviewed application: the early steps cleared, the rest with the
+  // reviewer, and the final approval still untouched — that is what puts it in the queue.
   steps: STEP_LABELS.map(([key, label], si) => ({
     key,
     label,
-    status: (si < 4 ? 'passed' : si === 4 ? 'under_review' : si === 6 ? 'not_started' : 'under_review') as StepStatus,
+    status: (si < 4
+      ? 'passed'
+      : si === STEP_LABELS.length - 1
+        ? 'not_started'
+        : 'under_review') as StepStatus,
   })),
 }));
 

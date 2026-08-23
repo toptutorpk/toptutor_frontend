@@ -16,7 +16,7 @@ export function Footer() {
           <div className="max-w-sm">
             <Logo />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Pakistan’s first 7-step verified tutoring marketplace. Find safe, qualified,
+              Pakistan’s first 6-step verified tutoring marketplace. Find safe, qualified,
               background-checked tutors — with secure escrow payments and total peace of mind.
             </p>
             <form

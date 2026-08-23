@@ -4,7 +4,7 @@ import { ShieldCheck, Star, Lock, CheckCircle2 } from 'lucide-react';
 import { Logo } from '@/components/common/Logo';
 
 const TRUST_POINTS = [
-  { icon: ShieldCheck, text: '7-step verified tutors only' },
+  { icon: ShieldCheck, text: '6-step verified tutors only' },
   { icon: Lock, text: 'Secure escrow payments' },
   { icon: Star, text: '4.8 average rating, 40k+ reviews' },
   { icon: CheckCircle2, text: 'Free 15-minute intro calls' },

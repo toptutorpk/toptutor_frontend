@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
@@ -7,6 +7,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ProtectedRoute } from '@/routes/ProtectedRoute';
 import { AdminRoute } from '@/routes/AdminRoute';
+import { DashboardHomeRedirect, DashboardSectionRoute } from '@/routes/DashboardSectionRoute';
 import { PageLoader } from '@/components/common/PageLoader';
 
 // ---- Lazy pages (code splitting) -------------------------------------------
@@ -115,35 +116,46 @@ const routes: RouteObject[] = [
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/dashboard', element: <DashboardHomeRedirect /> },
       {
-        path: '/dashboard/student',
-        element: <DashboardLayout role="student" />,
+        element: <DashboardSectionRoute section="/dashboard/student" />,
         children: [
-          { index: true, element: <S><StudentOverview /></S> },
-          { path: 'bookings', element: <S><StudentBookings /></S> },
-          { path: 'messages', element: <S><MessagesPage /></S> },
-          { path: 'favorites', element: <S><StudentFavorites /></S> },
-          { path: 'payments', element: <S><StudentPayments /></S> },
-          { path: 'reviews', element: <S><StudentReviews /></S> },
-          { path: 'profile', element: <S><ProfileSettings /></S> },
-          { path: 'settings', element: <S><AccountSettings /></S> },
+          {
+            path: '/dashboard/student',
+            element: <DashboardLayout role="student" />,
+            children: [
+              { index: true, element: <S><StudentOverview /></S> },
+              { path: 'bookings', element: <S><StudentBookings /></S> },
+              { path: 'messages', element: <S><MessagesPage /></S> },
+              { path: 'favorites', element: <S><StudentFavorites /></S> },
+              { path: 'payments', element: <S><StudentPayments /></S> },
+              { path: 'reviews', element: <S><StudentReviews /></S> },
+              { path: 'profile', element: <S><ProfileSettings /></S> },
+              { path: 'settings', element: <S><AccountSettings /></S> },
+            ],
+          },
         ],
       },
       {
-        path: '/dashboard/tutor',
-        element: <DashboardLayout role="tutor" />,
+        element: <DashboardSectionRoute section="/dashboard/tutor" />,
         children: [
-          { index: true, element: <S><TutorAnalytics /></S> },
-          { path: 'earnings', element: <S><TutorEarnings /></S> },
-          { path: 'schedule', element: <S><TutorSchedule /></S> },
-          { path: 'sessions', element: <S><TutorSessions /></S> },
-          { path: 'students', element: <S><TutorPlaceholder title="My Students" /></S> },
-          { path: 'reviews', element: <S><TutorReviews /></S> },
-          { path: 'messages', element: <S><MessagesPage /></S> },
-          { path: 'verification', element: <S><TutorVerification /></S> },
-          { path: 'profile', element: <S><ProfileSettings /></S> },
-          { path: 'media', element: <S><TutorMedia /></S> },
-          { path: 'settings', element: <S><AccountSettings /></S> },
+          {
+            path: '/dashboard/tutor',
+            element: <DashboardLayout role="tutor" />,
+            children: [
+              { index: true, element: <S><TutorAnalytics /></S> },
+              { path: 'earnings', element: <S><TutorEarnings /></S> },
+              { path: 'schedule', element: <S><TutorSchedule /></S> },
+              { path: 'sessions', element: <S><TutorSessions /></S> },
+              { path: 'students', element: <S><TutorPlaceholder title="My Students" /></S> },
+              { path: 'reviews', element: <S><TutorReviews /></S> },
+              { path: 'messages', element: <S><MessagesPage /></S> },
+              { path: 'verification', element: <S><TutorVerification /></S> },
+              { path: 'profile', element: <S><ProfileSettings /></S> },
+              { path: 'media', element: <S><TutorMedia /></S> },
+              { path: 'settings', element: <S><AccountSettings /></S> },
+            ],
+          },
         ],
       },
     ],
@@ -176,7 +188,6 @@ const routes: RouteObject[] = [
   { path: '/signup/tutor/profile', element: <S><TutorProfileCreatePage /></S> },
   // Payment return from Safepay checkout
   { path: '/booking/callback', element: <S><BookingCallback /></S> },
-  { path: '/dashboard', element: <Navigate to="/dashboard/student" replace /> },
   { path: '*', element: <S><NotFoundPage /></S> },
 ];
 

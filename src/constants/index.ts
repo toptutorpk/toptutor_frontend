@@ -39,7 +39,7 @@ export const POPULAR_SUBJECTS = [
   'Islamic Studies',
 ];
 
-/** The 7-step verification process — single source of truth for the trust UI. */
+/** The 6-step verification process — single source of truth for the trust UI. */
 export const VERIFICATION_STEPS: Omit<VerificationStep, 'status'>[] = [
   {
     id: 1,
@@ -63,16 +63,11 @@ export const VERIFICATION_STEPS: Omit<VerificationStep, 'status'>[] = [
   },
   {
     id: 5,
-    label: 'Subject Proficiency Test',
-    description: 'Short online test per subject to validate knowledge level.',
-  },
-  {
-    id: 6,
     label: 'Introduction Video',
     description: '1-2 minute video reviewed to confirm a real person matching the CNIC photo.',
   },
   {
-    id: 7,
+    id: 6,
     label: 'Admin Final Approval',
     description: 'Final human review of all documents before the Verified Badge is issued.',
   },

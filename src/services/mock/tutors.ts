@@ -10,12 +10,19 @@ import type {
 } from '@/types';
 import { VERIFICATION_STEPS } from '@/constants';
 
+// Step ids, so the shapes below survive the list being reordered: 3 is the criminal background
+// check (what a rejection turns on), 4 the optional experience proof, and 5+ the video and final
+// approval — the tail a part-reviewed application is still waiting on.
+const STEP_BACKGROUND = 3;
+const STEP_EXPERIENCE = 4;
+const STEP_AWAITING_REVIEW_FROM = 5;
+
 function buildSteps(status: VerificationStatus): VerificationStep[] {
   return VERIFICATION_STEPS.map((s) => {
     let stepStatus: VerificationStep['status'] = 'passed';
-    if (status === 'rejected' && s.id === 3) stepStatus = 'failed';
-    else if (status === 'under_review' && s.id >= 6) stepStatus = 'pending';
-    else if (status === 'partial' && s.id === 5) stepStatus = 'optional';
+    if (status === 'rejected' && s.id === STEP_BACKGROUND) stepStatus = 'failed';
+    else if (status === 'under_review' && s.id >= STEP_AWAITING_REVIEW_FROM) stepStatus = 'pending';
+    else if (status === 'partial' && s.id === STEP_EXPERIENCE) stepStatus = 'optional';
     return { ...s, status: stepStatus };
   });
 }

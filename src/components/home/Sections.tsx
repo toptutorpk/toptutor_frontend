@@ -46,7 +46,7 @@ export function StatsBar() {
 
 /* ------------------------------ Why Choose ------------------------------- */
 const WHY = [
-  { icon: ShieldCheck, title: '7-Step Verification', desc: 'CNIC, degree, criminal background, experience, proficiency, demo & admin review — every single tutor.', color: 'from-sky-500 to-blue-600' },
+  { icon: ShieldCheck, title: '6-Step Verification', desc: 'CNIC, degree, criminal background, experience, intro video & admin review — every single tutor.', color: 'from-sky-500 to-blue-600' },
   { icon: Wallet, title: 'Escrow Protection', desc: 'Your money is held securely and only released after you confirm the session was completed.', color: 'from-blue-500 to-indigo-600' },
   { icon: MessageSquareLock, title: 'Private & Encrypted', desc: 'In-app encrypted messaging keeps your phone number private until you confirm a booking.', color: 'from-violet-500 to-purple-600' },
   { icon: CalendarCheck, title: 'Free Trial Calls', desc: 'Book a free 15-minute intro call before committing to find the perfect match.', color: 'from-amber-500 to-orange-600' },

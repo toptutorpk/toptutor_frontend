@@ -23,6 +23,11 @@ export type ApplicationStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'CHANGES_RE
 export interface VerificationSlot {
   key: string;
   label: string;
+  /**
+   * How to draw the slot, and nothing more — `image` is the card-sized box, `document` a row,
+   * `video` a player. It says nothing about what the slot accepts: the payment receipt is a row
+   * that still takes photographs only. Read {@link VerificationSlot.accept} for that.
+   */
   kind: SlotKind;
   required: boolean;
   url?: string;
@@ -32,6 +37,15 @@ export interface VerificationSlot {
   reviewNotes?: string;
   /** True once approved — the tutor may no longer replace it. */
   locked: boolean;
+  /**
+   * MIME types this slot takes, comma-separated, straight from the category the server validates
+   * against — so the file picker can never offer something the upload will then refuse.
+   */
+  accept: string;
+  /** Size cap for anything that is not a PDF, in bytes. */
+  maxBytes: number;
+  /** Size cap for a PDF, in bytes. Equal to `maxBytes` where the slot has a single limit. */
+  pdfMaxBytes: number;
 }
 
 export interface VerificationStep {
@@ -54,6 +68,13 @@ export interface VerificationView {
   cnicNumber?: string;
   /** ISO date the CNIC was issued. */
   cnicIssueDate?: string;
+  /**
+   * Whether the Identity step has been approved, settling the CNIC details.
+   *
+   * <p>The typed counterpart to a document's own `locked`: the number and issue date are what the
+   * reviewer read the photographed card against, so approving the step approves them too.
+   */
+  identityLocked: boolean;
   /** What the tutor pays towards the background check we run for them, in PKR. */
   backgroundCheckFee: number;
 }

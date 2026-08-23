@@ -97,7 +97,7 @@ const clauses: LegalClause[] = [
             sessions, message another user, or contact support.
           </Item>
           <Item>
-            Tutors undergo a seven-step verification that involves identity documents, educational
+            Tutors undergo a six-step verification that involves identity documents, educational
             credentials and a criminal-record check. This is sensitive information and is handled
             under the additional safeguards described in clause 7.
           </Item>
@@ -319,10 +319,9 @@ const clauses: LegalClause[] = [
     body: (
       <>
         <P>
-          Tutors complete a seven-step verification before a verified badge is issued: identity
+          Tutors complete a six-step verification before a verified badge is issued: identity
           verification, educational credential checks, a criminal background check, confirmation of
-          teaching experience, a subject proficiency assessment, a recorded demonstration lesson, and
-          a final human review by our team.
+          teaching experience, a recorded introduction video, and a final human review by our team.
         </P>
         <P>
           Verification documents are collected for that purpose alone. We disclose to students,

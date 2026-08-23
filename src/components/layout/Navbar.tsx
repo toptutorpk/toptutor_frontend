@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Menu, Search, LayoutDashboard, LogOut, User as UserIcon, Heart } from 'lucide-react';
+import { Menu, Search, LayoutDashboard, LogOut, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MAIN_NAV } from '@/constants/navigation';
+import { MAIN_NAV, dashboardHome } from '@/constants/navigation';
 import { Logo } from '@/components/common/Logo';
 import { Container } from '@/components/common/Container';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
@@ -39,8 +39,12 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const dashboardPath =
-    user?.role === 'tutor' ? '/dashboard/tutor' : '/dashboard/student';
+  // Every menu entry is derived from the signed-in role. Hard-coded /dashboard/student links used to
+  // drop tutors into the learner portal, so the paths are taken from the same map the route guard
+  // uses. Admins have no per-role profile page; their equivalent lives in the console settings.
+  const dashboardPath = dashboardHome(user?.role);
+  const profilePath =
+    user?.role === 'admin' ? '/admin/settings' : `${dashboardPath}/profile`;
 
   return (
     <header
@@ -106,10 +110,7 @@ export function Navbar() {
                 <DropdownMenuItem onClick={() => navigate(dashboardPath)}>
                   <LayoutDashboard /> Dashboard
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/dashboard/student/favorites')}>
-                  <Heart /> Favorites
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/dashboard/student/profile')}>
+                <DropdownMenuItem onClick={() => navigate(profilePath)}>
                   <UserIcon /> Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

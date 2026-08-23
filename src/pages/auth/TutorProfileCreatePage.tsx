@@ -210,7 +210,7 @@ export default function TutorProfileCreatePage() {
       }
       clearOnboarding();
       toast.success('Profile created!', {
-        description: 'Next: complete your 7-step verification to go live.',
+        description: 'Next: complete your 6-step verification to go live.',
       });
       navigate('/welcome', { state: { role: 'tutor' } });
     } catch (e) {
@@ -449,7 +449,7 @@ export default function TutorProfileCreatePage() {
                 />
               </div>
               <p className="rounded-xl border border-brand-200 bg-brand-50 p-3 text-xs text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400">
-                You’ll upload supporting documents during the 7-step verification. These credentials
+                You’ll upload supporting documents during the 6-step verification. These credentials
                 show as “unverified” until our team confirms them.
               </p>
             </div>

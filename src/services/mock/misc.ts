@@ -27,11 +27,11 @@ export const TESTIMONIALS: Testimonial[] = [
 export const SUCCESS_STORIES = [
   { id: 'ss1', metric: '+2 Grades', label: 'Average improvement', detail: 'Students see a 2-grade jump within one term of consistent sessions.' },
   { id: 'ss2', metric: '48 hours', label: 'Guaranteed payout', detail: 'Tutors receive secure payment within 48 hours of session confirmation.' },
-  { id: 'ss3', metric: '100%', label: 'Verified tutors', detail: 'Every listed tutor passes our strict 7-step verification process.' },
+  { id: 'ss3', metric: '100%', label: 'Verified tutors', detail: 'Every listed tutor passes our strict 6-step verification process.' },
 ];
 
 export const FAQS = [
-  { q: 'How does the 7-step verification work?', a: 'Every tutor must pass identity (CNIC/NADRA), education credential, criminal background, teaching experience, subject proficiency, a video demo, and a final admin review before receiving the Verified Badge.' },
+  { q: 'How does the 6-step verification work?', a: 'Every tutor must pass identity (CNIC/NADRA), education credential, criminal background, teaching experience, an introduction video, and a final admin review before receiving the Verified Badge.' },
   { q: 'Is my payment safe?', a: 'Yes. We use an escrow model — your payment is held securely and only released to the tutor 48 hours after you confirm the session was completed. You have a 24-hour window to raise any dispute.' },
   { q: 'What payment methods are supported?', a: 'JazzCash, Easypaisa, and all major credit/debit cards. Full refunds are available for sessions cancelled 2+ hours before the start time.' },
   { q: 'Can I try a tutor before committing?', a: 'Absolutely. Book a free 15-minute intro call or a discounted trial session with any tutor before booking a full package.' },
