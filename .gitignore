@@ -13,3 +13,19 @@ coverage
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+# ---------------------------------------------------------------------------
+# Secrets & local tooling — NEVER commit
+# ---------------------------------------------------------------------------
+# Local AI-assistant working files: machine-specific paths, local credentials
+# and full working-tree copies under worktrees/. Never belongs in a repo.
+.claude/
+.cursor/
+.aider*
+
+*.pem
+*.key
+*.p12
+*.keystore
+secrets.json
+credentials.json
