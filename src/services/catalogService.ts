@@ -18,11 +18,25 @@ export interface CatalogMap {
   modes: CatalogItem[];
   languages: CatalogItem[];
   cities: CatalogItem[];
+  /** Banks a tutor can be paid into. */
+  'payout-banks': CatalogItem[];
+  /** Mobile wallets a tutor can be paid into. */
+  'payout-wallets': CatalogItem[];
 }
 
 export const catalogService = {
   /** Fetches every reference catalog in one call. */
   async getAll(): Promise<CatalogMap> {
     return http.get<CatalogMap>('/catalog');
+  },
+
+  /**
+   * One catalog on its own.
+   *
+   * Used where a page needs a single list rather than all of them — the payout form wants banks
+   * and wallets, and pulling the whole subject taxonomy to fill a dropdown of banks is waste.
+   */
+  async getOne(path: keyof CatalogMap): Promise<CatalogItem[]> {
+    return http.get<CatalogItem[]>(`/catalog/${path}`);
   },
 };

@@ -6,7 +6,15 @@ import { CITIES, GRADE_LEVELS, POPULAR_SUBJECTS } from '@/constants';
 import { LANGUAGE_OPTIONS, MODE_OPTIONS } from '@/components/tutor/profileFieldOptions';
 import type { SessionMode, TeachingLanguage } from '@/types';
 
-const EMPTY: CatalogMap = { subjects: [], 'grade-levels': [], modes: [], languages: [], cities: [] };
+const EMPTY: CatalogMap = {
+  subjects: [],
+  'grade-levels': [],
+  modes: [],
+  languages: [],
+  cities: [],
+  'payout-banks': [],
+  'payout-wallets': [],
+};
 
 /** Icons live client-side (they can't come from the DB); map a mode code to its icon. */
 const MODE_ICONS: Record<string, LucideIcon> = {

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { CheckCircle2, XCircle, Loader2, MessageSquare, Clock, Receipt } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, MessageSquare, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { bookingService, type BookingStatus } from '@/services/bookingService';
-import { toast } from '@/components/ui/sonner';
+import { ReceiptButton } from '@/components/booking/ReceiptButton';
 
 type State = 'checking' | 'paid' | 'pending' | 'failed' | 'cancelled';
 
@@ -70,18 +70,7 @@ export default function BookingCallback() {
               <MessageSquare className="h-4 w-4" /> Message your tutor
             </Button>
           )}
-          {state === 'paid' && (
-            <Button
-              variant="outline"
-              onClick={() =>
-                bookingService
-                  .openReceipt(bookingId)
-                  .catch(() => toast.error('Could not open receipt', { description: 'Please try again in a moment.' }))
-              }
-            >
-              <Receipt className="h-4 w-4" /> View payment receipt
-            </Button>
-          )}
+          {state === 'paid' && <ReceiptButton bookingId={bookingId} size="default" label="View payment receipt" />}
           {(state === 'pending' || state === 'paid') && (
             <Button variant="outline" asChild>
               <Link to="/dashboard/student/bookings">View my bookings</Link>

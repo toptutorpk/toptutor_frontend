@@ -177,6 +177,9 @@ export const TUTORS: Tutor[] = SEEDS.map((s, i) => {
     isPremium: s.premium,
     isFavorite: i % 4 === 0,
     isOnline: i % 3 !== 1, // ~two-thirds shown as currently active
+    // Mirrors a published DEMO slot on the real backend. Mixed here so both card states
+    // (with and without the free-call line) are visible in mock mode.
+    demoAvailable: i % 3 !== 2,
   };
 });
 

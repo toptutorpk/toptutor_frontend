@@ -364,3 +364,118 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+   Ask TopTutor — the floating help assistant
+   ----------------------------------------------------------------------------
+   The launcher has to survive sitting in the corner of every home-page visit
+   without becoming wallpaper, and it does that with motion rather than colour:
+   the robot breathes and blinks, and the halo under it swells very slowly. Each
+   loop runs on a different period so they never resolve into one pulse, which
+   is what makes an idle widget look mechanical.
+
+   All of it is transform/opacity only — no layout property is animated, so the
+   corner of the page never triggers a reflow while someone is reading.
+   ========================================================================== */
+
+/* The robot floats; the antenna dot stays roughly put, so the stalk reads as
+   springy. Deliberately small — 1.1 user units of a 64-unit box. */
+@keyframes tt-mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.1px); }
+}
+.tt-mascot-bob {
+  animation: tt-mascot-bob 3.6s ease-in-out infinite;
+}
+
+/* A blink is mostly waiting. The eyes are open for ~93% of the cycle and shut
+   for about 140ms, which is roughly what a real blink costs. */
+@keyframes tt-mascot-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%, 97%      { transform: scaleY(0.08); }
+}
+.tt-mascot-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tt-mascot-blink 5.4s ease-in-out infinite;
+}
+
+@keyframes tt-mascot-spark {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.72; transform: scale(0.86); }
+}
+.tt-mascot-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tt-mascot-spark 2.4s ease-in-out infinite;
+}
+
+/* The bloom under the launcher. A blurred, scaled copy of the pill rather than
+   a box-shadow, because a shadow cannot be animated without repaint cost. */
+@keyframes tt-halo {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50%      { opacity: 0.9;  transform: scale(1.06); }
+}
+.tt-halo {
+  animation: tt-halo 4.8s ease-in-out infinite;
+}
+
+/* The panel grows out of the launcher's corner rather than sliding in from
+   off-screen: the person just clicked that corner, so that is where their eye
+   already is. */
+@keyframes tt-panel-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.965); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tt-panel-in {
+  transform-origin: bottom right;
+  animation: tt-panel-in 0.28s cubic-bezier(0.21, 0.47, 0.32, 0.98);
+}
+
+@keyframes tt-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tt-msg-in {
+  animation: tt-msg-in 0.26s cubic-bezier(0.21, 0.47, 0.32, 0.98) backwards;
+}
+
+/* Three dots travelling, not three dots throbbing in unison. */
+@keyframes tt-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30%           { opacity: 1;   transform: translateY(-3px); }
+}
+.tt-dot {
+  animation: tt-dot 1.2s ease-in-out infinite;
+}
+
+/* Reduced motion: keep every element, drop every loop. The assistant still
+   shows a live antenna and a typing indicator, they just hold still. */
+@media (prefers-reduced-motion: reduce) {
+  .tt-mascot-bob,
+  .tt-mascot-eye,
+  .tt-mascot-spark,
+  .tt-halo,
+  .tt-panel-in,
+  .tt-msg-in,
+  .tt-dot {
+    animation: none;
+  }
+  .tt-halo {
+    opacity: 0.6;
+  }
+}
+
+/* Notification bell: a short ring when something arrives. Skipped for reduced motion. */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-14deg); }
+  40% { transform: rotate(12deg); }
+  60% { transform: rotate(-8deg); }
+  80% { transform: rotate(5deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-[wiggle'] {
+    animation: none !important;
+  }
+}

@@ -11,22 +11,8 @@ import {
   Award,
   Globe,
   Check,
-  Sparkles,
 } from 'lucide-react';
 
-/** Green "Free Demo" pill — the leverage for tutors who opt into demo sessions. */
-function DemoBadge({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
-        className,
-      )}
-    >
-      <Sparkles className="h-3 w-3" /> Free Demo
-    </span>
-  );
-}
 import { cn, formatPKR, getInitials } from '@/lib/utils';
 import type { SessionMode, TeachingLanguage, Tutor } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -149,7 +135,6 @@ function TutorListCard({ tutor, index }: { tutor: Tutor; index: number }) {
             <h3 className="font-display text-xl font-bold leading-tight">{tutor.name}</h3>
           </Link>
           <VerificationBadge status={tutor.verificationStatus} size="sm" />
-          {tutor.demoAvailable && <DemoBadge />}
           {tutor.isOnline && (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active now
@@ -197,9 +182,14 @@ function TutorListCard({ tutor, index }: { tutor: Tutor; index: number }) {
         </div>
 
         <ul className="space-y-1.5 text-sm text-foreground/90">
-          <li className="flex items-center gap-2">
-            <Check className="h-4 w-4 shrink-0 text-emerald-500" /> Free 15-min intro call
-          </li>
+          {/* Only promised when the tutor has actually opened a demo slot on their schedule.
+              `demoAvailable` mirrors that, so the card cannot advertise a free call the
+              tutor never offered. */}
+          {tutor.demoAvailable && (
+            <li className="flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0 text-emerald-500" /> Free 15-min intro call
+            </li>
+          )}
           <li className="flex items-center gap-2">
             <Check className="h-4 w-4 shrink-0 text-emerald-500" /> Verified credentials
           </li>
@@ -265,7 +255,6 @@ function TutorGridCard({ tutor, index }: { tutor: Tutor; index: number }) {
           </div>
           <div className="mb-1.5 flex flex-1 flex-wrap items-center gap-1.5">
             <VerificationBadge status={tutor.verificationStatus} size="sm" />
-            {tutor.demoAvailable && <DemoBadge />}
           </div>
         </div>
 

@@ -17,6 +17,10 @@ import { env } from '@/config/env';
 export const apiClient: AxiosInstance = axios.create({
   baseURL: env.apiBaseUrl,
   timeout: 20000,
+  // Send cookies on cross-origin calls. In cookie mode the backend delivers the refresh token in an
+  // HttpOnly cookie (never readable by this code) and the CSRF cookie the refresh/logout endpoints
+  // check; both only travel with credentials enabled. Harmless when the backend runs in body mode.
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     // ngrok free tier otherwise returns an HTML "browser warning" page instead
@@ -63,6 +67,42 @@ export class ApiError extends Error {
 // ---- Token storage ----------------------------------------------------------
 const ACCESS_KEY = 'toptutor.token';
 const REFRESH_KEY = 'toptutor.refresh';
+const CSRF_KEY = 'toptutor.csrf';
+
+// ---- CSRF double-submit token -----------------------------------------------
+// In cookie mode the backend sets an HttpOnly refresh cookie and a matching CSRF cookie, and
+// echoes the CSRF value in the `X-CSRF-Token` response header. A cookie set on the API host is not
+// readable by this code when the app is on a different host, so we read the token from that header
+// and send it back on the cookie-authenticated endpoints. It is persisted (not a secret against
+// XSS — that is the CSP's job) so a page reload can still refresh the session before re-login.
+let csrfToken: string | null = (() => {
+  try {
+    return localStorage.getItem(CSRF_KEY);
+  } catch {
+    return null;
+  }
+})();
+
+function rememberCsrfToken(value: string | null | undefined) {
+  if (!value) return;
+  csrfToken = value;
+  try {
+    localStorage.setItem(CSRF_KEY, value);
+  } catch {
+    /* ignore quota / privacy mode */
+  }
+}
+
+/** Picks the CSRF token out of a response's headers, if present, and remembers it. */
+function captureCsrf(headers: unknown) {
+  const h = headers as { [k: string]: string } | { get?: (k: string) => string | null } | undefined;
+  if (!h) return;
+  const value =
+    typeof (h as { get?: (k: string) => string | null }).get === 'function'
+      ? (h as { get: (k: string) => string | null }).get('x-csrf-token')
+      : (h as { [k: string]: string })['x-csrf-token'];
+  rememberCsrfToken(value);
+}
 
 export function getAccessToken(): string | null {
   try {
@@ -95,6 +135,12 @@ export function setTokens(accessToken: string | null, refreshToken?: string | nu
 
 export function clearTokens() {
   setTokens(null, null);
+  csrfToken = null;
+  try {
+    localStorage.removeItem(CSRF_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---- Session-ended notification ---------------------------------------------
@@ -138,6 +184,9 @@ export function setStoredToken(token: string | null) {
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) config.headers.set?.('Authorization', `Bearer ${token}`);
+  // Echo the CSRF token so the cookie-authenticated refresh/logout endpoints accept the request.
+  // Sent on every call for simplicity; ignored everywhere but those two endpoints.
+  if (csrfToken) config.headers.set?.('X-CSRF-Token', csrfToken);
   return config;
 });
 
@@ -147,16 +196,25 @@ const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/tutors/register', '/
 let inflightRefresh: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
+  // In cookie mode there is no stored refresh token — the HttpOnly cookie carries it, so we always
+  // attempt the refresh and let the server decide. In body mode the stored token is sent along.
   const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
   try {
-    const res = await axios.post<ApiEnvelope<{ accessToken: string; refreshToken: string }>>(
+    const res = await axios.post<ApiEnvelope<{ accessToken: string; refreshToken?: string }>>(
       `${env.apiBaseUrl}/auth/refresh`,
-      { refreshToken },
-      { headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' } },
+      refreshToken ? { refreshToken } : {},
+      {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
+      },
     );
+    captureCsrf(res.headers);
     const tokens = res.data.data;
-    setTokens(tokens.accessToken, tokens.refreshToken);
+    setTokens(tokens.accessToken, tokens.refreshToken ?? null);
     return tokens.accessToken;
   } catch (e) {
     // The server distinguishes "you were away too long" from "this token is not valid", and the
@@ -174,15 +232,22 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 apiClient.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Auth responses carry a fresh CSRF token in a header — capture it for the next refresh/logout.
+    captureCsrf(res.headers);
+    return res;
+  },
   async (error: AxiosError<ApiEnvelope<unknown>>) => {
     const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
     const status = error.response?.status;
     const url = original?.url ?? '';
     const isAuthPath = NO_REFRESH_PATHS.some((p) => url.includes(p));
 
-    // Transparent single refresh-and-retry on 401 for non-auth endpoints.
-    if (status === 401 && original && !original._retried && !isAuthPath && getRefreshToken()) {
+    // Transparent single refresh-and-retry on 401 for non-auth endpoints. Attempted whenever we
+    // believe a session exists — an access token (both modes) or a stored refresh token (body mode);
+    // in cookie mode the refresh token lives in an HttpOnly cookie this code cannot see.
+    const hasSession = Boolean(getAccessToken() || getRefreshToken());
+    if (status === 401 && original && !original._retried && !isAuthPath && hasSession) {
       original._retried = true;
       inflightRefresh = inflightRefresh ?? refreshAccessToken();
       const newToken = await inflightRefresh;
@@ -213,10 +278,83 @@ apiClient.interceptors.response.use(
 
 // ---- Typed helpers ----------------------------------------------------------
 // Unwrap the envelope so callers get the payload directly.
+/** One page of a list endpoint, with the paging metadata the server sends in headers. */
+export interface Page<T> {
+  items: T[];
+  page: number;
+  size: number;
+  total: number;
+  hasMore: boolean;
+}
+
+/** One keyset page (message threads): pass `nextCursor` back as `before` to walk into history. */
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+function header(headers: unknown, name: string): string | null {
+  const h = headers as { get?: (k: string) => string | null } | Record<string, string> | undefined;
+  if (!h) return null;
+  const value =
+    typeof (h as { get?: unknown }).get === 'function'
+      ? (h as { get: (k: string) => string | null }).get(name)
+      : (h as Record<string, string>)[name];
+  return value ?? null;
+}
+
+/** Hard ceiling on chunked "fetch everything" reads — matches the server's max page size. */
+const MAX_PAGE_SIZE = 100;
+const MAX_CHUNKED_PAGES = 50;
+
 export const http = {
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const res = await apiClient.get<ApiEnvelope<T>>(url, config);
     return res.data.data;
+  },
+  /**
+   * A list endpoint as one page. Every list the server returns is bounded (default 50 rows, max
+   * 100) and describes itself in `X-Page`, `X-Page-Size`, `X-Total-Count` and `X-Has-More` headers;
+   * the body stays a plain array, which is why `http.get` on the same URL still works and simply
+   * receives the first page.
+   */
+  async getPage<T>(url: string, config?: AxiosRequestConfig): Promise<Page<T>> {
+    const res = await apiClient.get<ApiEnvelope<T[]>>(url, config);
+    const items = res.data.data ?? [];
+    return {
+      items,
+      page: Number(header(res.headers, 'x-page') ?? 0),
+      size: Number(header(res.headers, 'x-page-size') ?? items.length),
+      total: Number(header(res.headers, 'x-total-count') ?? items.length),
+      hasMore: header(res.headers, 'x-has-more') === 'true',
+    };
+  },
+  /**
+   * Every row of a list, fetched in server-sized chunks. For internal screens (admin consoles)
+   * that render the whole set: each request stays bounded, and a runaway set stops at a ceiling
+   * instead of hanging the tab.
+   */
+  async getAllPages<T>(url: string, config?: AxiosRequestConfig): Promise<T[]> {
+    const all: T[] = [];
+    for (let page = 0; page < MAX_CHUNKED_PAGES; page++) {
+      const chunk = await http.getPage<T>(url, {
+        ...config,
+        params: { ...(config?.params ?? {}), page, size: MAX_PAGE_SIZE },
+      });
+      all.push(...chunk.items);
+      if (!chunk.hasMore) break;
+    }
+    return all;
+  },
+  /** A keyset page: the newest rows, or the rows before `before` when given. */
+  async getCursorPage<T>(url: string, config?: AxiosRequestConfig): Promise<CursorPage<T>> {
+    const res = await apiClient.get<ApiEnvelope<T[]>>(url, config);
+    return {
+      items: res.data.data ?? [],
+      nextCursor: header(res.headers, 'x-next-cursor'),
+      hasMore: header(res.headers, 'x-has-more') === 'true',
+    };
   },
   async post<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
     const res = await apiClient.post<ApiEnvelope<T>>(url, body, config);

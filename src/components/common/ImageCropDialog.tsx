@@ -13,6 +13,10 @@ interface Props {
   /** Object URL of the image being cropped. */
   imageSrc: string | null;
   saving?: boolean;
+  /** Dialog heading — names the thing being cropped ("Adjust your photo", "Adjust your logo"). */
+  title?: string;
+  /** Confirm-button text, for the same reason. */
+  saveLabel?: string;
   onCancel: () => void;
   /** Receives the cropped 512×512 JPEG. */
   onSave: (blob: Blob) => void;
@@ -22,7 +26,15 @@ interface Props {
  * WhatsApp/LinkedIn-style avatar cropper: drag to reposition, wheel/slider to zoom, circular preview.
  * Produces a square {@link OUTPUT}px JPEG of the visible crop — only that is uploaded, never the original.
  */
-export function ImageCropDialog({ open, imageSrc, saving, onCancel, onSave }: Props) {
+export function ImageCropDialog({
+  open,
+  imageSrc,
+  saving,
+  title = 'Adjust your photo',
+  saveLabel = 'Save photo',
+  onCancel,
+  onSave,
+}: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const nat = useRef({ w: 0, h: 0, base: 1 }); // natural size + cover base-scale
   const zoomRef = useRef(1);
@@ -120,7 +132,7 @@ export function ImageCropDialog({ open, imageSrc, saving, onCancel, onSave }: Pr
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Adjust your photo</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4">
@@ -134,10 +146,13 @@ export function ImageCropDialog({ open, imageSrc, saving, onCancel, onSave }: Pr
             onWheel={onWheel}
           >
             {imageSrc && (
-              // eslint-disable-next-line jsx-a11y/alt-text
               <img
                 ref={imgRef}
                 src={imageSrc}
+                // Names the image for a screen reader. It was previously unlabelled behind a
+                // disable comment for a rule this project does not have installed, so the comment
+                // was itself the only thing the linter reported.
+                alt="The image you are cropping"
                 onLoad={onImgLoad}
                 draggable={false}
                 className="pointer-events-none absolute left-0 top-0 max-w-none origin-top-left"
@@ -181,7 +196,7 @@ export function ImageCropDialog({ open, imageSrc, saving, onCancel, onSave }: Pr
           </Button>
           <Button variant="gradient" onClick={save} disabled={saving || !ready}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save photo
+            {saveLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

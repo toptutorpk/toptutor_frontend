@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Video, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { RestHoursBand, RestHoursPanel } from '@/components/schedule/RestHoursBand';
 import {
   formatDuration,
   formatTime,
@@ -12,15 +13,33 @@ import {
 
 /** Pixels per hour. Tall enough that a 30-minute block still fits a legible label. */
 const HOUR_PX = 64;
-/** The grid always covers at least the working day, so an empty week still looks like a calendar. */
-const DEFAULT_START_HOUR = 7;
-const DEFAULT_END_HOUR = 22;
+/**
+ * The grid always covers the whole teaching day, so an empty week still looks like a calendar — and
+ * so a tutor can see that 6am is theirs to sell without hunting for it.
+ *
+ * <p>It runs to 24 rather than stopping at 23:30 so the closing edge is drawn as a closed band
+ * rather than simply being where the calendar happens to stop.
+ */
+const DEFAULT_START_HOUR = 6;
+const DEFAULT_END_HOUR = 24;
+
+/**
+ * TopTutor's teaching hours, in minutes from midnight — 06:00 to 23:30.
+ *
+ * <p>Mirrors `toptutor.booking.day-start` / `day-end`, which the server enforces. Used here only to
+ * mark the closed hours, never to hide anything: a session booked before the hours narrowed still
+ * has to be visible to the person who has to turn up to it.
+ */
+const TEACHING_START = 6 * 60;
+const TEACHING_END = 23 * 60 + 30;
 
 interface Props {
   days: CalendarDay[];
   /** "Now" in the business timezone, from the server — the anchor for the current-time line. */
   serverNow: string;
   onJoin: (entry: CalendarEntry) => void;
+  /** Fired when the clock crosses midnight, so the page can refetch a day that is now yesterday. */
+  onDayRollover?: () => void;
   className?: string;
 }
 
@@ -30,9 +49,9 @@ interface Props {
  * <p>Renders whatever days it is handed — seven for the week view, one for the day view — so the two
  * views share all their geometry and only differ in how many columns they carry.
  */
-export function ScheduleCalendar({ days, serverNow, onJoin, className }: Props) {
-  const nowMinutes = useServerClock(serverNow);
-  const { startHour, endHour } = useGridBounds(days);
+export function ScheduleCalendar({ days, serverNow, onJoin, onDayRollover, className }: Props) {
+  const nowMinutes = useServerClock(serverNow, onDayRollover);
+  const { startHour, endHour } = useGridBounds(days, nowMinutes);
   const hours = useMemo(
     () => Array.from({ length: endHour - startHour }, (_, i) => startHour + i),
     [startHour, endHour],
@@ -56,7 +75,16 @@ export function ScheduleCalendar({ days, serverNow, onJoin, className }: Props) 
   }, [gridStart, gridHeight]);
 
   return (
-    <div className={cn('overflow-hidden rounded-2xl border bg-card shadow-soft', className)}>
+    // `isolate` gives the card its own stacking context, and that is load-bearing rather than
+    // decorative. The day headings below are sticky at z-30 so they clear the entry blocks (z-10)
+    // and the current-time line (z-20) — but the dashboard's own header is ALSO z-30, and with
+    // equal z-indices the later element in the document wins. The calendar is later, so its
+    // headings painted straight over the page chrome as soon as the page scrolled.
+    //
+    // Isolating scopes those three z-values to the inside of this card, where they were only ever
+    // meant to apply. The card then takes its natural place in the page, beneath the header,
+    // whatever numbers get used in here later.
+    <div className={cn('isolate overflow-hidden rounded-2xl border bg-card shadow-soft', className)}>
       <div ref={scrollRef} className="max-h-[32rem] overflow-y-auto">
         {/* Day headings sit INSIDE the scroller and stick to its top.
             Placed outside it, they measure a scrollbar's width wider than the
@@ -78,54 +106,83 @@ export function ScheduleCalendar({ days, serverNow, onJoin, className }: Props) 
           </div>
         </div>
 
-        <div className="flex" style={{ height: gridHeight }}>
-          {/* Hour gutter.
-
-              Each label sits just below the line that opens its hour, wholly
-              inside its own band, rather than straddling that line. Straddling
-              reads well mid-grid but breaks at both ends: the first label hung
-              above the top of the scrollable content, where nothing can bring
-              it back into view, and the viewport is an exact multiple of
-              HOUR_PX, so its lower edge also lands on a line and bisected the
-              last label too. Keeping each label inside its band means no edge
-              can ever cut one in half. */}
+        {/* The margin is what lets each hour label straddle its own line without the first one
+            being clipped by the top of the scroller. It sits on the whole grid — gutter, columns,
+            entries and the current-time line together — so the minute-to-pixel mapping is
+            untouched and nothing drifts out of alignment. */}
+        <div className="mt-3 flex" style={{ height: gridHeight }}>
+          {/* Hour gutter. Each label is centred ON the line that opens its hour, which is where the
+              eye looks for it: "9:00 AM" reads as a label for that line, not for the band under it.
+              Anchored at the line and pulled up half its own height, so it stays centred whatever
+              the font size becomes. The last hour's label sits at the TOP of the last band, so the
+              bottom edge of the grid never cuts one in half. */}
           <div className="w-14 shrink-0 sm:w-16">
             {hours.map((h) => (
               <div key={h} className="relative" style={{ height: HOUR_PX }}>
-                <span className="absolute right-2 top-1 text-[11px] tabular-nums text-muted-foreground">
+                <span className="absolute right-2 top-0 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground">
                   {formatTime(`${String(h).padStart(2, '0')}:00`)}
                 </span>
               </div>
             ))}
           </div>
 
-          {days.map((day) => (
-            <div
-              key={day.date}
-              className={cn(
-                'relative flex-1 border-l',
-                day.today && 'bg-brand-50/40 dark:bg-brand-500/5',
-                day.past && 'bg-muted/30',
-              )}
-            >
-              {hours.map((h) => (
-                <div key={h} className="border-b border-dashed border-border/60" style={{ height: HOUR_PX }} />
-              ))}
+          {/* The day columns share one relative parent so the rest-hours bands can span all of
+              them with a single element. Rendered per column instead, the illustration would
+              repeat seven times across a week. */}
+          <div className="relative flex flex-1">
+            {days.map((day) => (
+              <div
+                key={day.date}
+                className={cn(
+                  'relative flex-1 border-l',
+                  day.today && 'bg-brand-50/40 dark:bg-brand-500/5',
+                  day.past && 'bg-muted/30',
+                )}
+              >
+                {hours.map((h) => (
+                  <div key={h} className="border-b border-dashed border-border/60" style={{ height: HOUR_PX }} />
+                ))}
 
-              {day.entries.map((entry) => (
-                <EntryBlock
-                  key={`${entry.weeklySlotId}-${entry.start}`}
-                  entry={entry}
-                  gridStart={gridStart}
-                  compact={days.length > 1}
-                  onJoin={onJoin}
-                />
-              ))}
+                {day.entries.map((entry) => (
+                  <EntryBlock
+                    key={`${entry.weeklySlotId}-${entry.start}`}
+                    entry={entry}
+                    gridStart={gridStart}
+                    compact={days.length > 1}
+                    onJoin={onJoin}
+                  />
+                ))}
 
-              {day.today && <NowLine nowMinutes={nowMinutes} gridStart={gridStart} />}
-            </div>
-          ))}
+                {day.today && (
+                  <NowLine nowMinutes={nowMinutes} gridStart={gridStart} gridEnd={endHour * 60} />
+                )}
+              </div>
+            ))}
+
+            {/* Closed hours, drawn over every column. Two bands, because the grid can extend past
+                the teaching day at either end — before 06:00 when someone is looking at the
+                calendar overnight, and after 23:30 whenever the grid reaches midnight. */}
+            <RestHoursBand
+              top={0}
+              height={(Math.min(TEACHING_START, endHour * 60) - gridStart) / 60 * HOUR_PX}
+              label="Sessions run from 6:00 AM. Get some sleep — you have earned it."
+            />
+            <RestHoursBand
+              top={(Math.max(TEACHING_END, gridStart) - gridStart) / 60 * HOUR_PX}
+              height={(endHour * 60 - Math.max(TEACHING_END, gridStart)) / 60 * HOUR_PX}
+              // No label: this band is only the 23:30–24:00 half hour, far too short to read.
+              // The message lives in the panel below, which has room for it.
+              label=""
+            />
+          </div>
         </div>
+
+        {/* Reached by scrolling past the last hour. Rendered only when the grid actually runs to
+            the end of the day — paging to a week whose grid stops earlier should not claim the
+            evening is closed. */}
+        {endHour * 60 >= TEACHING_END && (
+          <RestHoursPanel label="Sessions run from 6:00 AM to 11:30 PM. The rest of the night is yours — get some sleep." />
+        )}
       </div>
     </div>
   );
@@ -150,10 +207,24 @@ function DayHeading({ day, single }: { day: CalendarDay; single: boolean }) {
   );
 }
 
-/** The red line marking the present moment — only ever drawn on today's column. */
-function NowLine({ nowMinutes, gridStart }: { nowMinutes: number; gridStart: number }) {
+/**
+ * The red line marking the present moment — only ever drawn on today's column.
+ *
+ * <p>Guarded at BOTH ends. `useGridBounds` now stretches the grid to include "now", so neither
+ * branch should fire; they stay as a backstop, because a line drawn outside the grid does not
+ * simply vanish — it lands on top of whatever is rendered above or below the calendar.
+ */
+function NowLine({
+  nowMinutes,
+  gridStart,
+  gridEnd,
+}: {
+  nowMinutes: number;
+  gridStart: number;
+  gridEnd: number;
+}) {
+  if (nowMinutes < gridStart || nowMinutes > gridEnd) return null;
   const top = ((nowMinutes - gridStart) / 60) * HOUR_PX;
-  if (top < 0) return null;
   return (
     <div className="pointer-events-none absolute inset-x-0 z-20 flex items-center" style={{ top }}>
       <span className="-ml-1 h-2 w-2 rounded-full bg-red-500" />
@@ -249,16 +320,40 @@ const LABELS: Record<CalendarEntry['status'], string> = {
  * in another timezone or simply wrong; only the elapsed time since the page loaded is measured
  * locally, which no clock can get meaningfully wrong.
  */
-function useServerClock(serverNow: string): number {
-  const [anchor] = useState(() => ({
+function useServerClock(serverNow: string, onDayRollover?: () => void): number {
+  const [anchor, setAnchor] = useState(() => ({
     serverMinutes: minutesOfDay(serverNow),
     mountedAt: Date.now(),
   }));
   const [minutes, setMinutes] = useState(anchor.serverMinutes);
+  const previous = useRef(anchor.serverMinutes);
+  const rollover = useRef(onDayRollover);
+  rollover.current = onDayRollover;
+
+  // Re-anchor whenever the server states the time again. The anchor used to be captured once on
+  // mount, so a tab left open for hours drifted with the device's own clock and had no way to be
+  // corrected; every refetch now resets it to the truth.
+  useEffect(() => {
+    setAnchor({ serverMinutes: minutesOfDay(serverNow), mountedAt: Date.now() });
+  }, [serverNow]);
 
   useEffect(() => {
-    const tick = () =>
-      setMinutes(anchor.serverMinutes + Math.floor((Date.now() - anchor.mountedAt) / 60000));
+    const tick = () => {
+      // Wrapped at midnight. Without the modulo, a page open from 23:50 reads 24:10 twenty minutes
+      // later — a time that does not exist, and one that sits below every hour the grid draws.
+      const next = (anchor.serverMinutes + Math.floor((Date.now() - anchor.mountedAt) / 60000)) % 1440;
+
+      // Crossing midnight also makes the DATA wrong: `day.today` was decided by the server when the
+      // week was fetched, so the red line would keep drawing on what is now yesterday's column.
+      // Telling the page lets it refetch. Guarded on a genuine wrap — late evening to early morning
+      // — rather than any decrease, so a re-anchor that nudges the clock back a minute cannot
+      // trigger a refetch loop.
+      if (previous.current > 1380 && next < 60) {
+        rollover.current?.();
+      }
+      previous.current = next;
+      setMinutes(next);
+    };
     tick();
     const id = window.setInterval(tick, 30_000);
     return () => window.clearInterval(id);
@@ -275,7 +370,7 @@ function minutesOfDay(isoLocalDateTime: string): number {
 }
 
 /** Fits the grid to the tutor's actual hours, never smaller than a normal working day. */
-function useGridBounds(days: CalendarDay[]) {
+function useGridBounds(days: CalendarDay[], nowMinutes: number) {
   return useMemo(() => {
     let earliest = DEFAULT_START_HOUR * 60;
     let latest = DEFAULT_END_HOUR * 60;
@@ -285,9 +380,23 @@ function useGridBounds(days: CalendarDay[]) {
         latest = Math.max(latest, toMinutes(entry.end));
       }
     }
+
+    // The current-time line is part of today, so the grid has to reach far enough to draw it.
+    // Without this, a tutor opening the page at 06:00 or 23:00 sees no red line at all: it would
+    // be positioned above or below every hour row that exists. Only when one of the visible days
+    // IS today — paging forward a week should not stretch the grid towards a "now" that is not on
+    // screen.
+    //
+    // The +1 makes the hour CONTAINING now the last one drawn rather than the one before it, so
+    // 23:59 still yields an hour row up to 24:00 for the line to sit in.
+    if (days.some((day) => day.today)) {
+      earliest = Math.min(earliest, nowMinutes);
+      latest = Math.max(latest, nowMinutes + 1);
+    }
+
     return {
-      startHour: Math.floor(earliest / 60),
+      startHour: Math.max(0, Math.floor(earliest / 60)),
       endHour: Math.min(24, Math.ceil(latest / 60)),
     };
-  }, [days]);
+  }, [days, nowMinutes]);
 }

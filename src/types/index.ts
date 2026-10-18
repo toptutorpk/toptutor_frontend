@@ -93,6 +93,11 @@ export interface Tutor {
   avatarUrl: string;
   coverUrl?: string;
   videoIntroUrl?: string;
+  /**
+   * YouTube video id when the branded cut was published there instead of to storage.
+   * Both may be set; the player prefers this one.
+   */
+  videoIntroYoutubeId?: string;
   verificationStatus: VerificationStatus;
   verificationSteps: VerificationStep[];
   rating: number;
@@ -109,8 +114,10 @@ export interface Tutor {
   currency: 'PKR';
   bio: string;
   experienceYears: number;
-  responseRate: number; // %
-  repeatHireRate: number; // %
+  /** % of new learner messages answered within 24h. Null until enough learners have written. */
+  responseRate: number | null;
+  /** % of learners with a finished session who booked again. Null until enough learners. */
+  repeatHireRate: number | null;
   totalSessions: number;
   education: Education[];
   certifications: Certification[];
@@ -210,6 +217,8 @@ export interface SearchFilters {
   minPrice?: number;
   maxPrice?: number;
   minRating?: number;
+  /** Grade level name, e.g. "O-Levels". */
+  gradeLevel?: string;
   gender?: GenderPreference;
   language?: TeachingLanguage | 'all';
   // No verifiedOnly filter: every listed tutor is verified, so it could only ever be a no-op that

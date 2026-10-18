@@ -62,6 +62,8 @@ interface BackendDetail extends BackendCard {
   availability?: { id: number; mode: string; start: string; end: string; booked: boolean }[];
   bio?: string;
   videoIntroUrl?: string;
+  /** Set instead of videoIntroUrl when the branded cut was published to YouTube. */
+  videoIntroYoutubeId?: string;
   skills?: string[];
   education?: BackendCredential[];
   certifications?: BackendCredential[];
@@ -167,13 +169,14 @@ function detailToTutor(d: BackendDetail): Tutor {
     ...cardToTutor(d),
     bio: d.bio ?? '',
     videoIntroUrl: d.videoIntroUrl ?? undefined,
+    videoIntroYoutubeId: d.videoIntroYoutubeId ?? undefined,
     skills: d.skills ?? [],
     education,
     certifications,
     courses: d.courses ?? [],
     verificationSteps: steps,
-    responseRate: d.responseRate ?? 0,
-    repeatHireRate: d.repeatHireRate ?? 0,
+    responseRate: d.responseRate ?? null,
+    repeatHireRate: d.repeatHireRate ?? null,
     totalSessions: d.totalSessions ?? 0,
     reviews: [],
     // Home visits only. The endpoint no longer returns online ranges — they recur weekly and are
@@ -206,6 +209,12 @@ function toParams(f: SearchFilters): Record<string, unknown> {
   put('mode', f.mode);
   put('language', f.language);
   put('gender', f.gender);
+  // Both of these used to be collected by the filter panel and never sent, so the controls did
+  // nothing at all. The server now accepts them.
+  put('gradeLevel', f.gradeLevel);
+  // Only when a floor was actually chosen. Zero is how the panel says "any rating", and sending
+  // it would mean "average >= 0" — which excludes every tutor who has no reviews yet.
+  if (f.minRating != null && f.minRating > 0) params.minRating = f.minRating;
   put('minPrice', f.minPrice);
   put('maxPrice', f.maxPrice);
   put('sort', f.sort);

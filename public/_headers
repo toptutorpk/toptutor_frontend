@@ -1,0 +1,20 @@
+# HTTP response headers for the static site.
+#
+# This file is honoured by Netlify, Cloudflare Pages, and other static hosts that read a `_headers`
+# file. If the app is deployed somewhere that ignores it (some Render/nginx setups), set the same
+# headers in that host's own configuration — the meta CSP in index.html still applies either way,
+# but the three headers below cannot be expressed in a meta tag and must come from the server.
+#
+# Keep the Content-Security-Policy here in step with the <meta> tag in index.html.
+
+/*
+  # Clickjacking: a meta tag cannot set frame-ancestors, so it has to be a real header.
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+  # Told the browser to trust our declared content types, never sniff around them.
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Force HTTPS for a year once seen. Only enable after confirming the site is fully served over TLS.
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # Deny powerful browser features the app does not use.
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()

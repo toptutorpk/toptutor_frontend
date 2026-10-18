@@ -15,9 +15,18 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatTime, type AddWeeklySlot, type SlotType, type WeekdayName } from '@/services/availabilityService';
 
-/** Half-hour steps from 07:00 to 22:00 — the same grid the server accepts. */
+/**
+ * Half-hour steps across TopTutor's teaching hours, 06:00 to 23:30.
+ *
+ * <p>Mirrors `toptutor.booking.day-start` / `day-end`, which the server enforces on every path that
+ * creates a time range. These dropdowns are the only place a tutor meets the hours, and offering a
+ * time the server would then refuse is worse than not offering it at all.
+ *
+ * <p>23:30 is the last END on the grid, so the latest full hour is 22:30–23:30. Nothing runs into
+ * the small hours — that is the point of the rule, for the tutor as much as the student.
+ */
 const TIMES: string[] = [];
-for (let h = 7; h <= 22; h++) {
+for (let h = 6; h <= 23; h++) {
   for (const m of ['00', '30']) TIMES.push(`${String(h).padStart(2, '0')}:${m}`);
 }
 

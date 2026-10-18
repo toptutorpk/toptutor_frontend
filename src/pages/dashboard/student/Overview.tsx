@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/common/StateViews';
 import { useQuery } from '@tanstack/react-query';
+import { JoinSessionButton } from '@/components/booking/JoinSessionButton';
 import { queryKeys } from '@/api/queryKeys';
 import { bookingService } from '@/services/bookingService';
 import { useAuthStore } from '@/store/authStore';
@@ -32,10 +33,15 @@ function dateLabel(iso: string | null | undefined): string {
 
 export default function StudentOverview() {
   const user = useAuthStore((s) => s.user);
-  const { data: bookings = [] } = useQuery({ queryKey: queryKeys.bookings.all, queryFn: bookingService.list });
+  const { data: bookings = [] } = useQuery({
+    queryKey: queryKeys.bookings.all,
+    queryFn: bookingService.list,
+  });
   const upcoming = bookings.filter((b) => b.status === 'UPCOMING');
   const completedCount = bookings.filter((b) => b.status === 'COMPLETED').length;
-  const spent = bookings.filter((b) => b.paymentStatus === 'PAID').reduce((s, b) => s + (b.amount ?? 0), 0);
+  const spent = bookings
+    .filter((b) => b.paymentStatus === 'PAID')
+    .reduce((s, b) => s + (b.amount ?? 0), 0);
 
   return (
     <div>
@@ -52,9 +58,24 @@ export default function StudentOverview() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon="CalendarCheck" label="Upcoming sessions" value={String(upcoming.length)} accent="brand" />
-        <StatCard icon="GraduationCap" label="Completed sessions" value={String(completedCount)} accent="emerald" />
-        <StatCard icon="ReceiptText" label="Paid sessions" value={String(bookings.filter((b) => b.paymentStatus === 'PAID').length)} accent="violet" />
+        <StatCard
+          icon="CalendarCheck"
+          label="Upcoming sessions"
+          value={String(upcoming.length)}
+          accent="brand"
+        />
+        <StatCard
+          icon="GraduationCap"
+          label="Completed sessions"
+          value={String(completedCount)}
+          accent="emerald"
+        />
+        <StatCard
+          icon="ReceiptText"
+          label="Paid sessions"
+          value={String(bookings.filter((b) => b.paymentStatus === 'PAID').length)}
+          accent="violet"
+        />
         <StatCard icon="Wallet" label="Total spent" value={formatPKR(spent)} accent="amber" />
       </div>
 
@@ -68,7 +89,11 @@ export default function StudentOverview() {
               </Button>
             </div>
             {upcoming.length === 0 ? (
-              <EmptyState icon={Calendar} title="No upcoming sessions" description="Book a verified tutor to get started." />
+              <EmptyState
+                icon={Calendar}
+                title="No upcoming sessions"
+                description="Book a verified tutor to get started."
+              />
             ) : (
               <ul className="divide-y">
                 {upcoming.map((b) => {
@@ -92,7 +117,11 @@ export default function StudentOverview() {
                       <Badge variant="secondary" className="gap-1 capitalize">
                         <I className="h-3 w-3" /> {b.mode?.toLowerCase() ?? 'online'}
                       </Badge>
-                      <Button size="sm" variant="outline">Join</Button>
+                      <JoinSessionButton
+                        bookingId={b.id}
+                        joinable={b.joinable}
+                        joinOpensAt={b.joinOpensAt}
+                      />
                     </li>
                   );
                 })}
@@ -113,7 +142,11 @@ export default function StudentOverview() {
               </li>
             ))}
           </ul>
-          <Button variant="secondary" className="mt-5 w-full bg-white text-brand-700 hover:bg-white/90" asChild>
+          <Button
+            variant="secondary"
+            className="mt-5 w-full bg-white text-brand-700 hover:bg-white/90"
+            asChild
+          >
             <Link to="/pricing">Upgrade for {formatPKR(999)}/mo</Link>
           </Button>
         </div>

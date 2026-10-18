@@ -1,14 +1,13 @@
 import { format } from 'date-fns';
-import { Receipt, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/dashboard/DashboardKit';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/common/StateViews';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/api/queryKeys';
 import { bookingService } from '@/services/bookingService';
 import { formatPKR } from '@/lib/utils';
-import { toast } from '@/components/ui/sonner';
+import { ReceiptButton } from '@/components/booking/ReceiptButton';
 
 const PAYMENT_BADGE: Record<string, { variant: 'success' | 'warning' | 'destructive' | 'secondary'; label: string }> = {
   PAID: { variant: 'success', label: 'Paid' },
@@ -79,16 +78,7 @@ export default function StudentPayments() {
                         {b.amount != null ? formatPKR(b.amount) : '—'}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={b.paymentStatus !== 'PAID'}
-                          onClick={() =>
-                            bookingService.openReceipt(b.id).catch(() => toast.error('Could not open receipt'))
-                          }
-                        >
-                          <Receipt className="h-4 w-4" /> View
-                        </Button>
+                        <ReceiptButton bookingId={b.id} disabled={b.paymentStatus !== 'PAID'} />
                       </td>
                     </tr>
                   );

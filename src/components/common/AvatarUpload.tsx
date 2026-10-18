@@ -15,15 +15,27 @@ interface Props {
   name?: string;
   /** Diameter in px. */
   size?: number;
+  /**
+   * What this image is called, in the person's words — "profile photo" for a person, "logo" for
+   * an institute. Used in the control's accessible name, the crop dialog and the success message,
+   * so a school is never told it updated its "profile photo".
+   */
+  label?: string;
   /** Called with the new URL after a successful upload (e.g. to sync a form field). */
   onChange?: (url: string) => void;
 }
 
 /**
- * Profile-photo control: pick an image → crop it (circular) → upload ONLY the 512×512 crop to R2
- * (replacing the previous one) → persist + reflect in the session avatar. The original is never stored.
+ * Image control shared by every account that has one: pick an image → crop it (circular) → upload
+ * ONLY the 512×512 crop to R2 (replacing the previous one) → persist + reflect in the session
+ * avatar. The original is never stored.
+ *
+ * <p>Where the image is saved is the server's decision, not this component's: {@code updatePhoto}
+ * routes by the caller's role — a tutor's to {@code tutor_profile.photo_url}, a learner's to their
+ * profile, an institute's to {@code institute_profile.logo_url}. That is what lets one control
+ * serve all of them.
  */
-export function AvatarUpload({ url, name, size = 80, onChange }: Props) {
+export function AvatarUpload({ url, name, size = 80, label = 'profile photo', onChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const user = useAuthStore((s) => s.user);
   const setSession = useAuthStore((s) => s.setSession);
@@ -59,10 +71,10 @@ export function AvatarUpload({ url, name, size = 80, onChange }: Props) {
       setCurrent(result.url);
       onChange?.(result.url);
       if (user) setSession({ ...user, avatarUrl: result.url }, getAccessToken() ?? '');
-      toast.success('Profile photo updated');
+      toast.success(`${capitalise(label)} updated`);
       closeCrop();
     } catch (e) {
-      toast.error('Could not update photo', {
+      toast.error(`Could not update ${label}`, {
         description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
       });
     } finally {
@@ -83,7 +95,7 @@ export function AvatarUpload({ url, name, size = 80, onChange }: Props) {
           type="button"
           onClick={() => inputRef.current?.click()}
           className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white shadow-md transition-colors hover:bg-brand-700"
-          aria-label="Change profile photo"
+          aria-label={`Change ${label}`}
         >
           <Camera className="h-4 w-4" />
         </button>
@@ -100,7 +112,20 @@ export function AvatarUpload({ url, name, size = 80, onChange }: Props) {
         />
       </div>
 
-      <ImageCropDialog open={!!picked} imageSrc={picked} saving={saving} onCancel={closeCrop} onSave={onSave} />
+      <ImageCropDialog
+        open={!!picked}
+        imageSrc={picked}
+        saving={saving}
+        title={`Adjust your ${label}`}
+        saveLabel={`Save ${label}`}
+        onCancel={closeCrop}
+        onSave={onSave}
+      />
     </>
   );
+}
+
+/** "logo" → "Logo". Only the first character, so "profile photo" does not become "Profile Photo". */
+function capitalise(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

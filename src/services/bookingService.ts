@@ -1,10 +1,15 @@
 import { apiClient, http } from '@/api/client';
+import type { BookingPaymentMethod } from '@/constants/payment';
+import type { LearnerRefund } from '@/services/refundService';
 
 export interface SessionBooking {
   bookingId: number;
   amount: number;
   currency: string;
-  checkoutUrl: string;
+  /** Safepay checkout to redirect to. Only set when the booking is paid by card. */
+  checkoutUrl?: string;
+  /** ISO instant the slot hold lapses. Older servers omit it; the client then assumes the default. */
+  holdExpiresAt?: string;
 }
 
 export interface BookingStatus {
@@ -32,6 +37,15 @@ export interface BookingSummary {
   status: string; // UPCOMING | COMPLETED | CANCELLED (derived server-side)
   paymentStatus: string; // NONE | PENDING | PAID | FAILED
   canMessage: boolean;
+  /** The learner may cancel it right now (paid, upcoming, before the cutoff). Decided by the server. */
+  cancellable: boolean;
+  /** Last moment it may be cancelled — ISO local date-time, Pakistan time. Null when never cancellable online. */
+  cancelDeadline: string | null;
+  /** Set once the learner has cancelled it. */
+  refund: LearnerRefund | null;
+  /** The classroom can be entered right now. Decided by the server. */  joinable: boolean;  /** When the classroom opens — ISO local date-time, Pakistan time. Null when it never will (unpaid, cancelled). */  joinOpensAt: string | null;
+  /** The learner has already reviewed this booking. */
+  reviewed: boolean;
 }
 
 /** A row in the tutor's "Sessions" list (mirrors backend TutorBookingResponse). */
@@ -50,6 +64,16 @@ export interface TutorBooking {
   currency: string | null;
   status: string; // UPCOMING | COMPLETED | CANCELLED (derived server-side)
   paymentStatus: string; // NONE | PENDING | PAID | FAILED
+  /** The classroom can be entered right now. Decided by the server. */
+  joinable: boolean;
+  /** When the classroom opens — ISO local date-time, Pakistan time. Null when it never will. */
+  joinOpensAt: string | null;
+  /** The tutor may cancel it now (paid, upcoming, before the tutor cutoff). Decided by the server. */
+  cancellable: boolean;
+  /** Last moment the tutor may cancel — ISO local date-time, Pakistan time. */
+  cancelDeadline: string | null;
+  /** Who cancelled it, once cancelled. */
+  cancelledBy: 'LEARNER' | 'TUTOR' | null;
 }
 
 /** A learner's chosen slice of one of the tutor's recurring weekly windows, on a concrete date. */
@@ -60,6 +84,8 @@ export interface CreateSessionInput {
   start: string; // 'HH:MM'
   end: string; // 'HH:MM'
   packageId: string;
+  /** How the learner will pay. Omitted means card, which is all older servers understand. */
+  method?: BookingPaymentMethod;
 }
 
 /**
@@ -89,9 +115,9 @@ export const bookingService = {
   /** Polls a booking's status. */
   get: (bookingId: number) => http.get<BookingStatus>(`/bookings/${bookingId}`),
   /** The signed-in learner's bookings for the student dashboard "My Bookings" list. */
-  list: () => http.get<BookingSummary[]>('/bookings'),
+  list: () => http.get<BookingSummary[]>('/bookings', { params: { size: 100 } }),
   /** The signed-in tutor's incoming bookings for the tutor dashboard "Sessions" list. */
-  listAsTutor: () => http.get<TutorBooking[]>('/bookings/tutor'),
+  listAsTutor: () => http.get<TutorBooking[]>('/bookings/tutor', { params: { size: 100 } }),
   /**
    * Opens the paid-session receipt PDF in a new tab (view + download). Fetches the bytes with the
    * auth header, then hands the browser a local blob URL so the new tab needs no credentials.

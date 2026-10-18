@@ -19,7 +19,7 @@ const CHOICES = [
     color: 'from-violet-500 to-purple-700',
   },
   {
-    to: '/institutes',
+    to: '/signup/institute',
     icon: Building2,
     title: 'I’m an Institute',
     desc: 'Hire verified teachers at scale with contracts and retainer tools.',

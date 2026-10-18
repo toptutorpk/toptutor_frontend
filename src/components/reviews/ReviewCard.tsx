@@ -4,9 +4,23 @@ import type { Review } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RatingStars } from '@/components/common/RatingStars';
-import { getInitials } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 
-export function ReviewCard({ review }: { review: Review }) {
+/**
+ * One review. Helpful is a toggle: pressed when the viewer has voted. Without {@code onHelpful} (or
+ * on the viewer's own review) it only shows the count.
+ */
+export function ReviewCard({
+  review,
+  helpful = false,
+  own = false,
+  onHelpful,
+}: {
+  review: Review;
+  helpful?: boolean;
+  own?: boolean;
+  onHelpful?: () => void;
+}) {
   return (
     <div className="rounded-2xl border bg-card p-5 shadow-soft">
       <div className="flex items-start gap-3">
@@ -40,8 +54,21 @@ export function ReviewCard({ review }: { review: Review }) {
             </div>
           )}
 
-          <button className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-primary">
-            <ThumbsUp className="h-3.5 w-3.5" /> Helpful ({review.helpfulCount ?? 0})
+          <button
+            type="button"
+            onClick={onHelpful}
+            disabled={!onHelpful || own}
+            aria-pressed={helpful}
+            title={own ? 'You can’t vote on your own review' : helpful ? 'Remove your vote' : 'Mark as helpful'}
+            className={cn(
+              'mt-3 inline-flex items-center gap-1.5 rounded-full px-2 py-1 -ml-2 text-xs font-medium transition-colors disabled:cursor-default disabled:opacity-60',
+              helpful
+                ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'
+                : 'text-muted-foreground enabled:hover:text-primary',
+            )}
+          >
+            <ThumbsUp className={cn('h-3.5 w-3.5', helpful && 'fill-current')} /> Helpful (
+            {review.helpfulCount ?? 0})
           </button>
         </div>
       </div>

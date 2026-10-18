@@ -29,3 +29,6 @@ coverage
 *.keystore
 secrets.json
 credentials.json
+
+# AI design-skill bundles (tooling, not app code)
+.agents/

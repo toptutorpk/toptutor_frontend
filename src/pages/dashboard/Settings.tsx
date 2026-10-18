@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Globe, Lock, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
+import { Bell, Globe, Lock, Loader2, LogOut, ShieldCheck, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/store/authStore';
 import { accountService } from '@/services/accountService';
+import { authService } from '@/services/authService';
 import { ApiError } from '@/api/client';
 import { toast } from '@/components/ui/sonner';
 
@@ -237,6 +238,22 @@ function SecuritySettings() {
     }
   };
 
+  const [signingOutAll, setSigningOutAll] = useState(false);
+  const signOutEverywhere = async () => {
+    setSigningOutAll(true);
+    try {
+      await authService.logoutEverywhere();
+      toast.success('Signed out of all devices');
+      logout();
+      navigate('/login', { replace: true });
+    } catch (e) {
+      toast.error('Could not sign out everywhere', {
+        description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
+      });
+      setSigningOutAll(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (hasPassword && !deletePassword) {
       setDeleteError('Enter your password to confirm.');
@@ -279,6 +296,25 @@ function SecuritySettings() {
           </div>
         </div>
         <Switch checked={!!twoFactor} disabled={twoFactor === null || savingTfa} onCheckedChange={toggleTfa} />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-6 shadow-soft">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+          </span>
+          <div>
+            <h3 className="font-display font-bold">Sign out of all devices</h3>
+            <p className="text-sm text-muted-foreground">
+              End every active session — on this device and any other. Use this if you think someone
+              else has access to your account.
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" disabled={signingOutAll} onClick={signOutEverywhere}>
+          {signingOutAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          Sign out everywhere
+        </Button>
       </div>
 
       <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-500/20 dark:bg-red-500/10">

@@ -14,8 +14,10 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
-    // Allow ngrok tunnel hosts (covers *.ngrok-free.dev / *.ngrok-free.app / *.ngrok.io)
-    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app', '.ngrok.io'],
+    // Allow tunnel hosts. A leading dot matches every subdomain, which matters for Cloudflare quick
+    // tunnels: each run gets a new random name (e.g. districts-iron-bidder-vehicles.trycloudflare.com).
+    // ngrok: *.ngrok-free.dev / *.ngrok-free.app / *.ngrok.io · Cloudflare: *.trycloudflare.com
+    allowedHosts: ['.ngrok-free.dev', '.ngrok-free.app', '.ngrok.io', '.trycloudflare.com'],
     // Same-origin proxy to the backend. The browser only ever talks to the
     // page origin (localhost or the tunnel), so there is no CORS and no
     // https→http mixed-content block, and it works from any device.

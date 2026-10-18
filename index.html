@@ -6,6 +6,31 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2563eb" />
+    <!--
+      Content-Security-Policy — the main defence-in-depth control against XSS, and the reason
+      an injected or compromised script cannot exfiltrate the session. Delivered as a meta tag so
+      it is enforced no matter which static host serves the build; the host should ALSO send it,
+      plus `frame-ancestors 'none'` (which a meta tag cannot express — see public/_headers), as an
+      HTTP header.
+        - script-src 'self' + Google Sign-In only. The app's own JS is hashed, first-party modules;
+          no inline script runs, so no 'unsafe-inline' is granted to scripts.
+        - connect-src is limited to https/wss because the API and WebSocket origins are set per
+          deployment; this still blocks any plaintext or cross-scheme exfiltration channel.
+        - object-src 'none' and base-uri 'self' close the two classic injection escapes.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' https://accounts.google.com;
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+               font-src 'self' https://fonts.gstatic.com;
+               img-src 'self' data: blob: https:;
+               connect-src 'self' https: wss:;
+               frame-src https://accounts.google.com https://www.youtube-nocookie.com;
+               object-src 'none';
+               base-uri 'self';
+               form-action 'self'"
+    />
     <meta
       name="description"
       content="TopTutor — Pakistan's first 7-step verified tutoring marketplace. Find safe, qualified, background-checked tutors for your child."

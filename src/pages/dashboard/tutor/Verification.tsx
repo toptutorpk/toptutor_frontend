@@ -698,15 +698,18 @@ function BackgroundFeePanel({ fee }: { fee: number }) {
             </p>
           </div>
 
-          {/* A bordered, divided list rather than loose label/value pairs. Spread across an open
-              column the two halves of a row drift apart and stop reading as one fact; inside a
-              ruled row the gap is the point. */}
-          <dl className="divide-y overflow-hidden rounded-xl border bg-secondary/30">
-            <DetailRow label="Account title" value={accountTitle} />
-            {/* Rendered only when a Till ID is configured — an empty row would read as a detail
+          {/* Stacked label-over-value pairs, no rules or panel. A ruled list is for a column of
+              many rows the eye has to track across; two details do not need scaffolding, and the
+              borders only competed with the card the whole section already sits in. Putting the
+              label above its value keeps the two together without a line to bind them.
+
+              The amount is not repeated here — it is already the badge in the header and named in
+              the sentence above, and a third copy is what made this column feel like a form. */}
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <Detail label="Account title" value={accountTitle} />
+            {/* Rendered only when a Till ID is configured — an empty pair would read as a detail
                 the tutor had failed to find. */}
-            {tillId && <DetailRow label="Till ID" value={tillId} copyable />}
-            <DetailRow label="Amount" value={formatPKR(fee)} />
+            {tillId && <Detail label="Till ID" value={tillId} copyable />}
           </dl>
 
           {ussdCode && (
@@ -745,8 +748,8 @@ function BackgroundFeePanel({ fee }: { fee: number }) {
   );
 }
 
-/** One account detail, with an optional copy button for the values people mistype. */
-function DetailRow({
+/** One account detail: a quiet label over the value, with a copy button where people mistype. */
+function Detail({
   label,
   value,
   copyable,
@@ -768,16 +771,21 @@ function DetailRow({
   };
 
   return (
-    <div className="flex min-h-11 items-center justify-between gap-3 px-3.5 py-2.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="flex min-w-0 items-center gap-1.5">
+    <div className="min-w-0">
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      {/* The copy button's own padding is what gives it a hit area; -mr-1 takes that padding back
+          out of the layout so it does not widen the pair, while the value stays flush with the
+          label above it. */}
+      <dd className="mt-1 flex min-w-0 items-center gap-0.5">
         <span className="truncate text-sm font-semibold tabular-nums">{value}</span>
         {copyable && (
           <button
             type="button"
             onClick={copy}
             aria-label={`Copy ${label}`}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="-mr-1 ml-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-emerald-600" />

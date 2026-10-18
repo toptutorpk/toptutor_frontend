@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Loader2,
   Check,
-  X,
   ArrowLeft,
   ArrowRight,
   User,
@@ -21,14 +20,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthHeader } from '@/components/auth/AuthHeader';
-import { OtpInput } from '@/components/auth/OtpInput';
+import { OtpChannelBlock } from '@/components/auth/OtpChannelBlock';
+import { PasswordChecklist } from '@/components/auth/PasswordChecklist';
 import { useAuthStore } from '@/store/authStore';
 import { authService, type VerificationChannel } from '@/services/authService';
 import { ApiError } from '@/api/client';
-import { isStrongPassword, passwordChecklist } from '@/lib/password';
+import { isStrongPassword } from '@/lib/password';
 import { isValidPhone, toE164, toMaskedDisplay, PHONE_ERROR } from '@/lib/phone';
 import { maskEmail, isValidEmail, normalizeEmail, EMAIL_ERROR } from '@/lib/email';
-import { useCooldown } from '@/hooks/useCooldown';
 import { toast } from '@/components/ui/sonner';
 
 const STEPS = ['Account', 'Verify'];
@@ -359,7 +358,7 @@ export default function TutorSignupPage() {
             and email <span className="font-semibold text-foreground">{maskEmail(form.email)}</span>
           </p>
 
-          <OtpBlock
+          <OtpChannelBlock
             icon={MessageSquare}
             title="SMS code"
             // Masked, and in the local form: the code went to the canonical number, but people
@@ -368,7 +367,7 @@ export default function TutorSignupPage() {
             onChange={setSmsCode}
             onResend={() => resend('PHONE')}
           />
-          <OtpBlock
+          <OtpChannelBlock
             icon={MailCheck}
             title="Email code"
             sentTo={maskEmail(form.email)}
@@ -414,35 +413,6 @@ function errorMessage(e: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-/**
- * The outstanding password requirements.
- *
- * <p>Withdraws entirely once the password satisfies all of them. The list is instruction, and
- * instruction that has been followed is just clutter sitting between the field and the button —
- * its disappearance is itself the confirmation that nothing is left to do. It stays away until
- * there is something to say again, so an edit that breaks a rule brings it straight back.
- */
-function PasswordChecklist({ password }: { password: string }) {
-  if (isStrongPassword(password)) return null;
-
-  return (
-    <ul className="grid grid-cols-1 gap-1 rounded-xl border bg-secondary/40 p-3 sm:grid-cols-2">
-      {passwordChecklist(password).map((rule) => (
-        <li
-          key={rule.label}
-          className={cn(
-            'flex items-center gap-1.5 text-[11px]',
-            rule.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
-          )}
-        >
-          {rule.met ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-          {rule.label}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function Field({
   label,
   icon: Icon,
@@ -466,77 +436,4 @@ function Field({
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
-}
-
-function OtpBlock({
-  icon: Icon,
-  title,
-  sentTo,
-  onChange,
-  onResend,
-}: {
-  icon: typeof MessageSquare;
-  title: string;
-  sentTo: string;
-  onChange: (code: string) => void;
-  onResend: () => void;
-}) {
-  // The clock starts on mount, which is the moment this block appears — i.e. the moment the first
-  // code was sent. There is no window in which resend is available before the code has had a
-  // chance to arrive.
-  const { remaining, active, start } = useCooldown();
-  const [resetToken, setResetToken] = useState(0);
-
-  const resend = () => {
-    onResend();
-    start();
-    // Empties the boxes and drops the caret back in the first one. The code that was being typed
-    // belongs to the message that was just superseded, so leaving it there would offer the person
-    // a code the server has already discarded.
-    setResetToken((n) => n + 1);
-  };
-
-  return (
-    <div className="rounded-xl border bg-card p-3 shadow-soft">
-      {/* The heading is pure identity — which channel this is, and where it went. The action that
-          used to share this row has moved below the boxes: resending is what you reach for after
-          looking for a code and not finding one, which is a decision made at the end of the block
-          rather than before it. */}
-      <div className="mb-2.5 flex items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0 leading-tight">
-          <div className="text-sm font-semibold">{title}</div>
-          <div className="truncate text-[11px] text-muted-foreground">Sent to {sentTo || '—'}</div>
-        </div>
-      </div>
-
-      <OtpInput size="sm" resetToken={resetToken} onChange={onChange} />
-
-      <div className="mt-2.5 text-center text-[11px] text-muted-foreground">
-        Didn’t get it?{' '}
-        {active ? (
-          // The wait is stated as a time, not as a greyed-out button with no explanation. A
-          // disabled control that says only "Resend code" reads as broken.
-          <span className="font-medium tabular-nums">
-            Resend in {formatCountdown(remaining)}
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={resend}
-            className="font-semibold text-primary hover:underline"
-          >
-            Resend code
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** 60 → "1:00", 9 → "0:09". Seconds alone read as a bigger number than they are at a minute. */
-function formatCountdown(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }

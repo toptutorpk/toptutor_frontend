@@ -5,10 +5,20 @@ import { LearningJourney, FinalCTA } from '@/components/home/Sections';
 import { FaqSection } from '@/components/common/FaqSection';
 import { VERIFICATION_STEPS } from '@/constants';
 import { ShieldCheck } from 'lucide-react';
+import { FeatureVideo } from '@/components/common/FeatureVideo';
 
 export default function HowItWorksPage() {
   return (
     <div className="flex flex-col gap-24 py-12">
+      {/* The best content-to-context match on the site: this page is the six steps, and the film's
+          longest sequence is those same six steps. Anyone who reached this page has already chosen
+          to care about verification, so the film runs before the list rather than after it. */}
+      <FeatureVideo
+        eyebrow="Watch — 80 seconds"
+        title="See the verification, end to end"
+        description="The six checks below, as they actually run — from CNIC to the final human approval."
+        tone="tint"
+      />
       <Container>
         {/* Counted off the step list rather than written out, so the page can never advertise a
             number of checks that does not match the ones printed underneath it. */}

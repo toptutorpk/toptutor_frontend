@@ -62,6 +62,9 @@ export const STUDENT_DASHBOARD_NAV: NavItem[] = [
   { label: 'Reviews', to: '/dashboard/student/reviews', icon: 'Star' },
   { label: 'Profile', to: '/dashboard/student/profile', icon: 'User' },
   { label: 'Settings', to: '/dashboard/student/settings', icon: 'Settings' },
+  // Learners and parents are the people this form exists for, and the moment they need it they
+  // are already signed in and looking at a booking or a message — not scrolling to the footer.
+  { label: 'Report Misconduct', to: '/report', icon: 'ShieldAlert' },
 ];
 
 export const TUTOR_DASHBOARD_NAV: NavItem[] = [
@@ -73,20 +76,47 @@ export const TUTOR_DASHBOARD_NAV: NavItem[] = [
   { label: 'Reviews', to: '/dashboard/tutor/reviews', icon: 'Star' },
   { label: 'Messages', to: '/dashboard/tutor/messages', icon: 'MessageSquare' },
   { label: 'Verification', to: '/dashboard/tutor/verification', icon: 'ShieldCheck' },
+  { label: 'Institute jobs', to: '/dashboard/tutor/jobs', icon: 'Briefcase' },
+  { label: 'Offers', to: '/dashboard/tutor/offers', icon: 'Handshake' },
+  { label: 'Institute hiring', to: '/dashboard/tutor/institute-hiring', icon: 'Building2' },
   { label: 'Profile', to: '/dashboard/tutor/profile', icon: 'User' },
   { label: 'Media', to: '/dashboard/tutor/media', icon: 'Image' },
   { label: 'Settings', to: '/dashboard/tutor/settings', icon: 'Settings' },
+];
+
+/**
+ * An institute's portal.
+ *
+ * <p>Teacher search, job posts and hiring are listed even before approval — each explains what
+ * verification unlocks and refuses politely until then, which is more use to a half-registered
+ * institute than a nav that hides most of the product.
+ */
+export const INSTITUTE_DASHBOARD_NAV: NavItem[] = [
+  { label: 'Overview', to: '/dashboard/institute', icon: 'LayoutDashboard' },
+  { label: 'Find teachers', to: '/dashboard/institute/teachers', icon: 'Users' },
+  { label: 'Job posts', to: '/dashboard/institute/jobs', icon: 'Briefcase' },
+  { label: 'Hiring', to: '/dashboard/institute/hiring', icon: 'Handshake' },
+  { label: 'Payroll', to: '/dashboard/institute/payroll', icon: 'Banknote' },
+  { label: 'Messages', to: '/dashboard/institute/messages', icon: 'MessageSquare' },
+  { label: 'Billing', to: '/dashboard/institute/billing', icon: 'Wallet' },
+  { label: 'Registration', to: '/dashboard/institute/registration', icon: 'ShieldCheck' },
+  { label: 'Institute profile', to: '/dashboard/institute/profile', icon: 'Building2' },
+  { label: 'Settings', to: '/dashboard/institute/settings', icon: 'Settings' },
 ];
 
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Overview', to: '/admin', icon: 'LayoutDashboard' },
   { label: 'Approvals', to: '/admin/approvals', icon: 'ShieldCheck' },
   { label: 'Alerts', to: '/admin/alerts', icon: 'Bell' },
+  { label: 'Reports', to: '/admin/reports', icon: 'ShieldAlert' },
   { label: 'Tutors', to: '/admin/tutors', icon: 'GraduationCap' },
   { label: 'Students', to: '/admin/students', icon: 'Users' },
   { label: 'Institutes', to: '/admin/institutes', icon: 'Building2' },
   { label: 'Bookings', to: '/admin/bookings', icon: 'CalendarCheck' },
   { label: 'Payments', to: '/admin/payments', icon: 'Wallet' },
+  { label: 'Refunds', to: '/admin/refunds', icon: 'RotateCcw' },
+  { label: 'Payout accounts', to: '/admin/payout-accounts', icon: 'Landmark' },
+  { label: 'Institute billing', to: '/admin/institute-billing', icon: 'ReceiptText' },
   { label: 'Analytics', to: '/admin/analytics', icon: 'BarChart3' },
   { label: 'Settings', to: '/admin/settings', icon: 'Settings' },
 ];
@@ -95,6 +125,7 @@ export const DASHBOARD_NAV_BY_ROLE: Partial<Record<UserRole, NavItem[]>> = {
   student: STUDENT_DASHBOARD_NAV,
   parent: STUDENT_DASHBOARD_NAV,
   tutor: TUTOR_DASHBOARD_NAV,
+  institute: INSTITUTE_DASHBOARD_NAV,
   admin: ADMIN_NAV,
 };
 
@@ -106,7 +137,7 @@ export const DASHBOARD_NAV_BY_ROLE: Partial<Record<UserRole, NavItem[]>> = {
 export const DASHBOARD_HOME_BY_ROLE: Record<UserRole, string> = {
   student: '/dashboard/student',
   parent: '/dashboard/student',
-  institute: '/dashboard/student',
+  institute: '/dashboard/institute',
   tutor: '/dashboard/tutor',
   admin: '/admin',
 };

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CornerDownRight, X } from 'lucide-react';
 import { PageHeader } from '@/components/dashboard/DashboardKit';
@@ -7,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { RatingStars } from '@/components/common/RatingStars';
 import { EmptyState } from '@/components/common/StateViews';
-import { getInitials } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewService, type PendingReview, type StudentReview } from '@/services/reviewService';
+import { queryKeys } from '@/api/queryKeys';
 
 // Skipped prompts are remembered locally so we never nag — the session stays reviewable elsewhere.
 const SKIP_KEY = 'toptutor.reviews.skipped';
@@ -32,13 +34,14 @@ function PendingCard({ p, onDone, onSkip }: { p: PendingReview; onDone: () => vo
     onSuccess: () => {
       toast.success('Review submitted', { description: 'Thanks for helping other students!' });
       qc.invalidateQueries({ queryKey: ['reviews'] });
+      qc.invalidateQueries({ queryKey: queryKeys.bookings.all }); // hides the booking's Review button
       onDone();
     },
     onError: (e: unknown) => toast.error('Could not submit review', { description: (e as Error).message }),
   });
 
   return (
-    <div className="relative mb-4 rounded-2xl border bg-card p-6 shadow-soft">
+    <div className="relative rounded-2xl border bg-card p-6 shadow-soft">
       <button
         onClick={onSkip}
         className="absolute right-4 top-4 text-muted-foreground transition-colors hover:text-foreground"
@@ -113,9 +116,18 @@ function MyReviewCard({ r }: { r: StudentReview }) {
 }
 
 export default function StudentReviews() {
-  const [skipped, setSkipped] = useState<number[]>(readSkipped);
+  // Arriving from a booking's Review button: that session is shown even if it was skipped before.
+  const [params] = useSearchParams();
+  const target = Number(params.get('booking')) || null;
+  const [skipped, setSkipped] = useState<number[]>(() => readSkipped().filter((id) => id !== target));
   const { data: pending = [] } = useQuery({ queryKey: ['reviews', 'pending'], queryFn: reviewService.pending });
   const { data: mine = [] } = useQuery({ queryKey: ['reviews', 'mine'], queryFn: reviewService.mine });
+
+  const targetRef = useRef<HTMLDivElement>(null);
+  const targetPending = target !== null && pending.some((p) => p.bookingId === target);
+  useEffect(() => {
+    if (targetPending) targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [targetPending]);
 
   const skip = (bookingId: number) => {
     const next = [...new Set([...skipped, bookingId])];
@@ -133,7 +145,13 @@ export default function StudentReviews() {
         <div className="mb-8">
           <h2 className="mb-3 font-display text-lg font-bold">Rate your recent sessions</h2>
           {toReview.map((p) => (
-            <PendingCard key={p.bookingId} p={p} onDone={() => skip(p.bookingId)} onSkip={() => skip(p.bookingId)} />
+            <div
+              key={p.bookingId}
+              ref={p.bookingId === target ? targetRef : undefined}
+              className={cn('mb-4', p.bookingId === target && 'rounded-2xl ring-2 ring-brand-400 ring-offset-2 ring-offset-background')}
+            >
+              <PendingCard p={p} onDone={() => skip(p.bookingId)} onSkip={() => skip(p.bookingId)} />
+            </div>
           ))}
         </div>
       )}

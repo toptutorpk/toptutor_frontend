@@ -194,7 +194,7 @@ interface AccountMe {
   id: number;
   email?: string;
   phone: string;
-  role: 'TUTOR' | 'STUDENT' | 'PARENT' | 'ADMIN';
+  role: 'TUTOR' | 'STUDENT' | 'PARENT' | 'INSTITUTE' | 'ADMIN';
   status: string;
   name?: string;
   city?: string;
@@ -205,6 +205,7 @@ const ROLE_MAP: Record<AccountMe['role'], UserRole> = {
   TUTOR: 'tutor',
   STUDENT: 'student',
   PARENT: 'parent',
+  INSTITUTE: 'institute',
   ADMIN: 'admin',
 };
 
@@ -227,6 +228,21 @@ export interface RegisterAccountPayload {
   phone: string;
   email?: string;
   city?: string;
+  password: string;
+  acceptedTerms: boolean;
+}
+
+/**
+ * What an institute gives at signup — only enough to create the account.
+ *
+ * <p>Email is required here where a learner's is optional, because every institute is invoiced.
+ * Signatory, address and legal identity are collected on the profile afterwards, next to the
+ * documents that evidence them.
+ */
+export interface RegisterInstitutePayload {
+  instituteName: string;
+  phone: string;
+  email: string;
   password: string;
   acceptedTerms: boolean;
 }
@@ -319,6 +335,42 @@ export const authService = {
     return this.getMe();
   },
 
+  /**
+   * Institute sign-up, step 1 — stages the details and sends a code to the phone and the email.
+   *
+   * <p>Creates no account, exactly like tutor sign-up: nothing holds the email or phone until both
+   * codes are proved, so an abandoned attempt can be retried with the same details.
+   */
+  async registerInstitute(payload: RegisterInstitutePayload): Promise<OtpChallenge> {
+    return http.post<OtpChallenge>('/accounts/register/institute', payload);
+  },
+
+  /**
+   * Institute sign-up, step 2 — verifies both codes, which is what creates the account.
+   *
+   * <p>Unlike the tutor flow the tokens are stored here: the institute goes straight to its
+   * dashboard to finish registration, rather than back to the login page.
+   */
+  async verifyInstituteOtp(input: {
+    registrationId: number;
+    phoneCode: string;
+    emailCode: string;
+  }): Promise<User> {
+    const tokens = await http.post<TokenResponse>(
+      '/accounts/register/institute/verify-otp',
+      input,
+    );
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    return this.getMe();
+  },
+
+  async resendInstituteOtp(input: {
+    registrationId: number;
+    channel: VerificationChannel;
+  }): Promise<OtpChallenge> {
+    return http.post<OtpChallenge>('/accounts/register/institute/resend-otp', input);
+  },
+
   /** Parent → children management. */
   async listChildren(): Promise<Child[]> {
     return http.get<Child[]>('/parents/children');
@@ -368,15 +420,29 @@ export const authService = {
   },
 
   async logout() {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      try {
-        await http.post('/auth/logout', { refreshToken });
-      } catch {
-        /* best-effort revocation */
-      }
+    // Always call the endpoint: in cookie mode the refresh token lives in an HttpOnly cookie (there
+    // is nothing to read here), and the server both revokes it and clears the cookie. In body mode
+    // the stored token is sent along. The CSRF header is attached by the client interceptor.
+    try {
+      const refreshToken = getRefreshToken();
+      await http.post('/auth/logout', refreshToken ? { refreshToken } : {});
+    } catch {
+      /* best-effort revocation */
     }
     clearTokens();
+  },
+
+  /**
+   * Ends every session for the signed-in account — the control to reach for when you suspect your
+   * account is compromised. The server identifies the account from the access token, so there is
+   * nothing to pass; local tokens are cleared afterwards like an ordinary sign-out.
+   */
+  async logoutEverywhere() {
+    try {
+      await http.post('/auth/logout-all', {});
+    } finally {
+      clearTokens();
+    }
   },
 
   // ===== Student / parent (mock, until those backends exist) ==================

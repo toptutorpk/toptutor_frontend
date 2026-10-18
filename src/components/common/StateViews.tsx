@@ -38,6 +38,25 @@ export function NoResults({ onReset }: { onReset?: () => void }) {
   );
 }
 
+/**
+ * Shown when a page number is past the end of the results.
+ *
+ * <p>Distinct from {@link NoResults} on purpose. Both render an empty list, but they mean opposite
+ * things: one says the search was too narrow, the other says the search worked and you have simply
+ * run off the end of it. Offering "clear all filters" for the second would undo a search that was
+ * doing exactly what it should.
+ */
+export function NoMorePages({ onBack }: { onBack: () => void }) {
+  return (
+    <EmptyState
+      icon={Inbox}
+      title="No more results"
+      description="You’ve reached the end of the list for this search."
+      action={{ label: 'Back to first page', onClick: onBack }}
+    />
+  );
+}
+
 export function ErrorState({ onRetry, message }: { onRetry?: () => void; message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">

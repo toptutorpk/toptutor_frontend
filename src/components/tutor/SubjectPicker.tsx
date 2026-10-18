@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
@@ -16,6 +17,17 @@ import { useSubjectCategoryIndex, useSubjectGroups } from '@/hooks/useCatalogs';
 interface Props {
   selected: string[];
   onChange: (subjects: string[]) => void;
+  /**
+   * Lets the picker accept a subject the catalogue does not have.
+   *
+   * <p>Off for tutors, who teach from the public taxonomy and whose subjects drive search. On for
+   * institutes, which hire for roles the taxonomy does not carry — "Quran &amp; Tajweed", a
+   * board-specific paper, a Montessori post. Their free text is stored against the job rather
+   * than added to the catalogue, so the public list stays curated.
+   */
+  allowCustom?: boolean;
+  /** Longest a custom subject may be; matches the column the server stores it in. */
+  maxCustomLength?: number;
 }
 
 /**
@@ -34,12 +46,18 @@ interface Props {
  * anything, so the subject control stays disabled until then rather than silently offering every
  * subject in the catalogue.
  */
-export function SubjectPicker({ selected, onChange }: Props) {
+export function SubjectPicker({
+  selected,
+  onChange,
+  allowCustom = false,
+  maxCustomLength = 100,
+}: Props) {
   const groups = useSubjectGroups();
   const categoryOf = useSubjectCategoryIndex();
   const [category, setCategory] = useState<string>('');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState('');
 
   const visible = useMemo(() => {
     const scoped = groups.filter((g) => g.category === category);
@@ -61,6 +79,32 @@ export function SubjectPicker({ selected, onChange }: Props) {
   };
 
   const matchCount = visible.reduce((n, g) => n + g.subjects.length, 0);
+
+  /**
+   * Adds a typed subject.
+   *
+   * <p>Case-insensitive against both the catalogue and what is already picked, so typing
+   * "physics" when "Physics" exists selects the catalogue entry instead of creating a near-
+   * duplicate the server would then store as free text.
+   */
+  const addCustom = () => {
+    const value = custom.trim().replace(/\s+/g, ' ');
+    if (!value) return;
+
+    const known = groups
+      .flatMap((g) => g.subjects)
+      .find((s) => s.toLowerCase() === value.toLowerCase());
+    const name = known ?? value;
+
+    if (selected.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      setCustom('');
+      return;
+    }
+    onChange([...selected, name]);
+    setCustom('');
+  };
+
+  const customTooLong = custom.trim().length > maxCustomLength;
 
   return (
     <div className="space-y-3">
@@ -165,6 +209,47 @@ export function SubjectPicker({ selected, onChange }: Props) {
         </div>
       </div>
 
+      {/* Free text, for a role the catalogue does not name. Deliberately below the catalogue
+          controls: it is the fallback, and offering it first would invite typed duplicates of
+          subjects that already exist. */}
+      {allowCustom && (
+        <div className="space-y-1.5">
+          <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Not listed?
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter adds the subject; without this it submits the surrounding form instead,
+                // saving the post with the typed subject still sitting in the box.
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addCustom();
+                }
+              }}
+              placeholder="Add your own, e.g. Quran & Tajweed"
+              aria-invalid={customTooLong}
+              className="h-11"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addCustom}
+              disabled={!custom.trim() || customTooLong}
+            >
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+          <p className={cn('text-xs', customTooLong ? 'text-destructive' : 'text-muted-foreground')}>
+            {customTooLong
+              ? `Keep it under ${maxCustomLength} characters.`
+              : 'Used on this post only — it is not added to the public subject list.'}
+          </p>
+        </div>
+      )}
+
       {/* Chips sit directly under the controls, styled like the course chips below them, so the
           two "add many" blocks in this card read as one pattern rather than two designs. */}
       {selected.length > 0 && (
@@ -175,7 +260,7 @@ export function SubjectPicker({ selected, onChange }: Props) {
               className="flex items-center gap-2 rounded-md border bg-secondary/40 py-1 pl-3 pr-1.5 text-sm"
             >
               <span className="font-semibold text-brand-700 dark:text-brand-400">{subject}</span>
-              <span className="text-muted-foreground">{categoryOf[subject] ?? 'Other'}</span>
+              <span className="text-muted-foreground">{categoryOf[subject] ?? 'Custom'}</span>
               <button
                 type="button"
                 onClick={() => toggle(subject)}

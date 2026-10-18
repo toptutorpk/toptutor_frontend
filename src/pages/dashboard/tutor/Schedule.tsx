@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/sonner';
+import { useJoinSession } from '@/hooks/useJoinSession';
 import { ApiError } from '@/api/client';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
@@ -46,10 +47,17 @@ for (let h = 7; h <= 22; h++) {
 }
 
 const DAY_ORDER = [
-  'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY',
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
 ] as const;
 
 export default function TutorSchedule() {
+  const { join: joinSession, rulesDialog } = useJoinSession();
   const isMobile = useIsMobile();
   // A phone cannot show seven time columns legibly, so it always shows a single day. The toggle is
   // hidden rather than disabled — offering a view that doesn't fit helps nobody.
@@ -66,6 +74,12 @@ export default function TutorSchedule() {
   );
 
   const queryClient = useQueryClient();
+  // Same key HomeAndDemoSection uses, so react-query serves both from one request rather than
+  // fetching the profile modes twice on every visit.
+  const availability = useQuery({
+    queryKey: ['tutor', 'availability'],
+    queryFn: () => availabilityService.getMine(),
+  });
   const calendar = useQuery({
     queryKey: ['tutor', 'calendar', from, to],
     queryFn: () => availabilityService.weekly.calendar(from, to),
@@ -94,11 +108,14 @@ export default function TutorSchedule() {
       invalidateSchedule();
       toast.success('Slot removed');
     },
-    onError: (e) =>
-      toast.error('Could not remove that slot', { description: errorText(e) }),
+    onError: (e) => toast.error('Could not remove that slot', { description: errorText(e) }),
   });
 
   const step = effectiveView === 'week' ? 7 : 1;
+
+  // Undefined while the profile is still loading — treated as "offers online" so the Add control
+  // does not flash out and back in on every visit. The server is the actual gate either way.
+  const offersOnline = availability.data ? availability.data.modes.includes('online') : true;
 
   return (
     <div>
@@ -110,13 +127,23 @@ export default function TutorSchedule() {
       {/* ---- Online calendar ------------------------------------------------ */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="icon" aria-label="Previous"
-                  onClick={() => setAnchor((d) => addDays(d, -step))}>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Previous"
+            onClick={() => setAnchor((d) => addDays(d, -step))}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={() => setAnchor(startOfToday())}>Today</Button>
-          <Button variant="outline" size="icon" aria-label="Next"
-                  onClick={() => setAnchor((d) => addDays(d, step))}>
+          <Button variant="outline" onClick={() => setAnchor(startOfToday())}>
+            Today
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Next"
+            onClick={() => setAnchor((d) => addDays(d, step))}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
           <p className="ml-2 font-display text-sm font-bold sm:text-base">
@@ -133,7 +160,9 @@ export default function TutorSchedule() {
                   onClick={() => setView(v)}
                   className={cn(
                     'rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors',
-                    view === v ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground',
+                    view === v
+                      ? 'bg-brand-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {v}
@@ -141,9 +170,27 @@ export default function TutorSchedule() {
               ))}
             </div>
           )}
-          <AddWeeklySlotDialog onAdd={(slot) => addSlot.mutateAsync(slot)} pending={addSlot.isPending} />
+          {offersOnline && (
+            <AddWeeklySlotDialog
+              onAdd={(slot) => addSlot.mutateAsync(slot)}
+              pending={addSlot.isPending}
+            />
+          )}
         </div>
       </div>
+
+      {/* The calendar itself stays visible either way: a tutor who has switched Online off may still
+          have booked sessions and published slots, and hiding the page would hide those rather than
+          help. Only the ability to publish MORE online time is withdrawn. */}
+      {!offersOnline && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-2xl border bg-card p-4 text-sm text-muted-foreground shadow-soft">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+          <span>
+            Add <span className="font-medium text-foreground">Online</span> to your teaching modes
+            in your profile to offer online sessions and publish weekly slots.
+          </span>
+        </div>
+      )}
 
       {/* On a phone the day view needs a way to move between days without paging one at a time. */}
       {isMobile && <DateStrip anchor={anchor} onPick={setAnchor} />}
@@ -156,14 +203,20 @@ export default function TutorSchedule() {
         <ScheduleCalendar
           days={calendar.data.days}
           serverNow={calendar.data.serverNow}
-          onJoin={() =>
-            toast.info('Joining sessions is coming soon', {
-              description: 'The video classroom is not connected yet.',
-            })
-          }
+          // Midnight passed with the page open. The fetched week still marks yesterday as "today",
+          // so the red line would sit on the wrong column until someone reloaded. Move the view to
+          // the real today and refetch.
+          onDayRollover={() => {
+            setAnchor(startOfToday());
+            invalidateSchedule();
+          }}
+          onJoin={(entry) => {
+            if (entry.bookingId) void joinSession(entry.bookingId);
+          }}
         />
       )}
 
+      {rulesDialog}
       <Legend />
 
       {/* ---- The recurring pattern behind the calendar ----------------------- */}
@@ -182,7 +235,10 @@ export default function TutorSchedule() {
 
 function Legend() {
   const items = [
-    { label: 'Open', className: 'border-dashed border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10' },
+    {
+      label: 'Open',
+      className: 'border-dashed border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10',
+    },
     { label: 'Booked', className: 'border-brand-300 bg-brand-100 dark:bg-brand-500/20' },
     { label: 'Too short to book', className: 'border-border bg-muted' },
     { label: 'Unavailable', className: 'border-slate-300 bg-slate-100 dark:bg-slate-500/15' },
@@ -229,7 +285,12 @@ function DateStrip({ anchor, onPick }: { anchor: Date; onPick: (d: Date) => void
             </span>
             <span className="text-sm font-semibold tabular-nums">{date.getDate()}</span>
             {iso === todayISO && (
-              <span className={cn('mt-0.5 h-1 w-1 rounded-full', selected ? 'bg-white' : 'bg-brand-600')} />
+              <span
+                className={cn(
+                  'mt-0.5 h-1 w-1 rounded-full',
+                  selected ? 'bg-white' : 'bg-brand-600',
+                )}
+              />
             )}
           </button>
         );
@@ -273,8 +334,8 @@ function WeeklySlotManager({
         <div>
           <h3 className="font-display font-bold leading-tight">Weekly online schedule</h3>
           <p className="text-xs text-muted-foreground">
-            The pattern behind your calendar. Slots can’t overlap, and a slot must be at least an hour
-            long to be bookable.
+            The pattern behind your calendar. Slots can’t overlap, and a slot must be at least an
+            hour long to be bookable.
           </p>
         </div>
       </div>
@@ -375,7 +436,11 @@ function HomeAndDemoSection() {
       toast.info('That slot is already added');
       return;
     }
-    setHome([...home, { id: 0, start, end, booked: false }].sort((a, b) => a.start.localeCompare(b.start)));
+    setHome(
+      [...home, { id: 0, start, end, booked: false }].sort((a, b) =>
+        a.start.localeCompare(b.start),
+      ),
+    );
   };
 
   return (
@@ -384,8 +449,8 @@ function HomeAndDemoSection() {
         <div className="mt-6 flex items-start gap-2.5 rounded-2xl border bg-card p-4 text-sm text-muted-foreground shadow-soft">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
           <span>
-            Add <span className="font-medium text-foreground">Home visit</span> to your teaching modes
-            in your profile to offer home tuition as well.
+            Add <span className="font-medium text-foreground">Home visit</span> to your teaching
+            modes in your profile to offer home tuition as well.
           </span>
         </div>
       )}
@@ -413,8 +478,9 @@ function HomeAndDemoSection() {
             <div className="flex-1">
               <h3 className="font-display font-bold">Offer a free demo session</h3>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Tutors who offer a free demo get a{' '}
-                <span className="font-medium text-emerald-600">“Free Demo” badge</span> and rank{' '}
+                Your listing shows{' '}
+                <span className="font-medium text-emerald-600">“Free 15-min intro call”</span>,
+                learners get a button to request one on your profile, and you rank{' '}
                 <span className="font-medium text-foreground">higher in search</span>.
               </p>
             </div>
@@ -492,7 +558,11 @@ function RangeEditor({
               {r.booked ? (
                 <Lock className="h-3.5 w-3.5" />
               ) : (
-                <button onClick={() => onRemove(i)} aria-label="Remove slot" className="hover:text-red-600">
+                <button
+                  onClick={() => onRemove(i)}
+                  aria-label="Remove slot"
+                  className="hover:text-red-600"
+                >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -500,7 +570,9 @@ function RangeEditor({
           ))}
         </div>
       ) : (
-        <p className="mb-4 text-sm text-muted-foreground">No slots yet — add the times you’re available.</p>
+        <p className="mb-4 text-sm text-muted-foreground">
+          No slots yet — add the times you’re available.
+        </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-secondary/30 p-4">
@@ -527,10 +599,14 @@ function TimeField({
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+        <SelectTrigger className="w-28">
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent>
           {TIMES.map((t) => (
-            <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
+            <SelectItem key={t} value={t}>
+              {formatTime(t)}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -568,12 +644,24 @@ function toISO(date: Date): string {
 function rangeLabel(from: string, to: string, view: 'week' | 'day'): string {
   const start = new Date(`${from}T00:00:00`);
   if (view === 'day') {
-    return start.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+    return start.toLocaleDateString(undefined, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   }
   const end = new Date(`${to}T00:00:00`);
   const sameMonth = start.getMonth() === end.getMonth();
-  const startLabel = start.toLocaleDateString(undefined, sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' });
-  const endLabel = end.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const startLabel = start.toLocaleDateString(
+    undefined,
+    sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'short' },
+  );
+  const endLabel = end.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
   return `${startLabel} – ${endLabel}`;
 }
 

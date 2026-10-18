@@ -17,7 +17,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { FilterPanel } from '@/components/search/FilterPanel';
 import { TutorCard, TutorListCardSkeleton } from '@/components/cards/TutorCard';
 import { Pagination } from '@/components/common/Pagination';
-import { NoResults, ErrorState } from '@/components/common/StateViews';
+import { NoResults, NoMorePages, ErrorState } from '@/components/common/StateViews';
 import { useTutors } from '@/hooks/useTutors';
 
 const SORTS: { value: NonNullable<SearchFilters['sort']>; label: string }[] = [
@@ -43,6 +43,7 @@ export default function TutorListingPage() {
       minPrice: num('minPrice'),
       maxPrice: num('maxPrice'),
       minRating: num('minRating'),
+      gradeLevel: params.get('gradeLevel') ?? undefined,
       sort: (params.get('sort') as SearchFilters['sort']) ?? 'relevance',
       page: num('page') ?? 1,
     };
@@ -105,7 +106,9 @@ export default function TutorListingPage() {
                   <SlidersHorizontal className="h-4 w-4" /> Filters
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[88vw] max-w-sm overflow-y-auto p-6">
+              {/* Also unpadded, for the same reason as the sidebar: the panel's sections carry
+                  their own padding and their dividers have to reach both edges. */}
+              <SheetContent side="left" className="w-[88vw] max-w-sm overflow-y-auto p-0 pt-4">
                 <FilterPanel filters={filters} onChange={patch} onReset={reset} />
               </SheetContent>
             </Sheet>
@@ -148,7 +151,10 @@ export default function TutorListingPage() {
         {/* Layout */}
         <div className="mt-6 grid gap-8 lg:grid-cols-[280px_1fr]">
           <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-2xl border bg-card p-5 shadow-soft">
+            {/* The single boundary. `overflow-hidden` clips the panel's banded sections to these
+                corners; no padding, because each section supplies its own so the dividers between
+                them span the full width. */}
+            <div className="sticky top-24 overflow-hidden rounded-2xl border bg-card shadow-soft">
               <FilterPanel filters={filters} onChange={patch} onReset={reset} />
             </div>
           </aside>
@@ -162,6 +168,11 @@ export default function TutorListingPage() {
                   <TutorListCardSkeleton key={i} />
                 ))}
               </div>
+            ) : data && data.items.length === 0 && (filters.page ?? 1) > 1 ? (
+              /* Past the last page — which is not the same as matching nothing. Telling someone
+                 their filters are too narrow when page 1 is full of results sends them to undo a
+                 search that was working. */
+              <NoMorePages onBack={() => patch({ page: 1 })} />
             ) : data && data.items.length === 0 ? (
               <NoResults onReset={reset} />
             ) : (
@@ -195,5 +206,8 @@ function buildActiveChips(f: SearchFilters) {
   if (f.language && f.language !== 'all') chips.push({ key: 'language', label: f.language });
   if (f.gender && f.gender !== 'any') chips.push({ key: 'gender', label: f.gender });
   if (f.minRating) chips.push({ key: 'minRating', label: `${f.minRating}★ & up` });
+  // Listed like every other filter: a chip row that silently omits one is worse than no chip row,
+  // because it becomes a list you cannot trust to be complete.
+  if (f.gradeLevel) chips.push({ key: 'gradeLevel', label: f.gradeLevel });
   return chips;
 }

@@ -38,6 +38,22 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * The raw value of a `type="number"` field with any minus sign removed.
+ *
+ * `min={0}` is not enough on its own. It constrains the spinner buttons and marks the field
+ * `:invalid`, but it does not stop someone typing `-5`, and the browser hands that straight to
+ * the change handler. These forms submit through react-query rather than a native form submit,
+ * so nothing else consults `:invalid` either — a negative salary, experience or notice period
+ * reaches the API unless the keystroke is dropped here.
+ *
+ * Applied as the value is typed, so the field never displays a minus at all. Pair it with
+ * `min={0}` on the input: the attribute gives the affordance, this gives the guarantee.
+ */
+export function noNegative(raw: string): string {
+  return raw.replace(/-/g, '');
+}
+
 /** Simple async delay (used to simulate network latency in mocks). */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

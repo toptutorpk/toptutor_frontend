@@ -68,9 +68,16 @@ export function AuthLayout() {
         <div className="flex shrink-0 items-center justify-between p-6 lg:hidden">
           <Logo />
         </div>
-        <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-3">
-          <div className="w-full max-w-md">
-            <Outlet />
+        {/* Centring lives on the inner wrapper, not the scroll container. `items-center` on a
+            scrolling flex box centres content taller than the viewport, which puts its top above
+            the scrollable area where it cannot be reached — the form's heading simply vanishes.
+            `min-h-full` centres a short form and grows past the viewport for a long one, so every
+            auth screen scrolls to both ends. */}
+        <div className="flex-1 overflow-y-auto px-6 py-3">
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-md">
+              <Outlet />
+            </div>
           </div>
         </div>
         <p className="shrink-0 px-6 pb-3 text-center text-xs text-muted-foreground">

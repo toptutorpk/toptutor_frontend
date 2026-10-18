@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, Search, ShieldCheck, Check, CheckCheck, Flag, Loader2, MessageSquare } from 'lucide-react';
+import {
+  Send,
+  Search,
+  ShieldCheck,
+  Check,
+  CheckCheck,
+  Flag,
+  Loader2,
+  MessageSquare,
+  Building2,
+} from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -12,6 +23,7 @@ import { unreadMessagesKey } from '@/hooks/useUnreadMessages';
 import { useMessagingSocket, type TypingEvent } from '@/hooks/useMessagingSocket';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/components/ui/sonner';
+import type { UserRole } from '@/types';
 
 export default function MessagesPage() {
   const me = useAuthStore((s) => s.user);
@@ -38,12 +50,46 @@ export default function MessagesPage() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
-  const { data: thread = [] } = useQuery({
+  // The thread is paged by message id (keyset). The query holds the LATEST page and stays live
+  // (refetch + socket invalidation); older pages are loaded on demand into `older` and kept apart,
+  // so a refetch of the latest page never throws away history the user has scrolled back to.
+  const { data: threadPage } = useQuery({
     queryKey: queryKeys.messages(String(activeId)),
-    queryFn: () => messagingService.getThread(activeId as number),
+    queryFn: () => messagingService.getThreadPage(activeId as number),
     enabled: activeId !== null,
     refetchInterval: 15000,
   });
+  const [older, setOlder] = useState<ChatMessage[]>([]);
+  const [olderState, setOlderState] = useState<{ cursor: string | null; hasMore: boolean } | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  useEffect(() => {
+    setOlder([]);
+    setOlderState(null);
+  }, [activeId]);
+
+  const latest = useMemo(() => threadPage?.messages ?? [], [threadPage]);
+  const thread = useMemo(() => {
+    if (older.length === 0) return latest;
+    const seen = new Set(older.map((m) => m.id));
+    return [...older, ...latest.filter((m) => !seen.has(m.id))];
+  }, [older, latest]);
+  const hasOlder = olderState ? olderState.hasMore : (threadPage?.hasMore ?? false);
+
+  const loadOlder = async () => {
+    if (activeId === null || loadingOlder) return;
+    const cursor = olderState ? olderState.cursor : (threadPage?.nextCursor ?? null);
+    if (!cursor) return;
+    setLoadingOlder(true);
+    try {
+      const page = await messagingService.getThreadPage(activeId, cursor);
+      setOlder((prev) => [...page.messages, ...prev]);
+      setOlderState({ cursor: page.nextCursor, hasMore: page.hasMore });
+    } catch {
+      toast.error('Could not load earlier messages. Please try again.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   const invalidate = (conversationId?: number) => {
     qc.invalidateQueries({ queryKey: queryKeys.conversations.all });
@@ -95,18 +141,21 @@ export default function MessagesPage() {
   // Mark the open thread as read whenever it changes and has unread messages for me.
   useEffect(() => {
     if (activeId === null) return;
-    const hasUnreadForMe = thread.some((m) => m.senderAccountId !== myId && !m.readAt);
+    // Only the live (latest) page can carry something unread; loading history must not re-trigger this.
+    const hasUnreadForMe = latest.some((m) => m.senderAccountId !== myId && !m.readAt);
     if (hasUnreadForMe) markReadMutation.mutate(activeId);
     setTypingFrom(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, thread.length]);
+  }, [activeId, latest.length]);
 
   // Keep the thread scrolled to the newest message — scroll only the list, never the page
   // (scrollIntoView would scroll ancestor containers too, hiding the panel under the header).
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread.length, typingFrom]);
+    // Keyed on the latest page only: loading older messages prepends and must not yank the user
+    // back to the bottom of the thread.
+  }, [latest.length, typingFrom]);
 
   const send = () => {
     const body = draft.trim();
@@ -132,7 +181,7 @@ export default function MessagesPage() {
   );
 
   if (conversations.length === 0) {
-    return <EmptyState />;
+    return <EmptyState role={me?.role} />;
   }
 
   return (
@@ -203,6 +252,13 @@ export default function MessagesPage() {
                   <ShieldCheck className="h-3 w-3" /> Verified
                 </span>
               )}
+              {/* A school reaching a tutor looks exactly like a parent without this — and the two
+                  warrant very different replies, so say which one is writing. */}
+              {active?.participantRole === 'INSTITUTE' && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-600">
+                  <Building2 className="h-3 w-3" /> Institute
+                </span>
+              )}
             </div>
             <div className="text-xs text-muted-foreground">
               {typingFrom ? <span className="text-brand-600">typing…</span> : 'Tap to view profile'}
@@ -219,6 +275,14 @@ export default function MessagesPage() {
         </div>
 
         <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-secondary/20 p-4">
+          {hasOlder && (
+            <div className="flex justify-center">
+              <Button variant="ghost" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                {loadingOlder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {loadingOlder ? 'Loading…' : 'Load earlier messages'}
+              </Button>
+            </div>
+          )}
           <div className="mx-auto w-fit rounded-md bg-secondary px-3 py-1 text-center text-xs text-muted-foreground">
             🔒 Keep chatting here. Phone numbers, emails & links are hidden to protect you both.
           </div>
@@ -286,20 +350,72 @@ function Ticks({ message }: { message: ChatMessage }) {
   return <Check className="h-3 w-3" />;
 }
 
-function EmptyState() {
+/**
+ * The empty inbox, addressed to whoever is looking at it.
+ *
+ * <p>This page is shared by both portals, and the learner's version of it read as nonsense on the
+ * tutor side: a tutor was being told to book an intro call with a tutor, under a button offering to
+ * find them one. The two roles sit on opposite ends of the same action — a learner opens the
+ * conversation, a tutor waits for one — so each needs its own account of why the page is empty and
+ * what, if anything, to do about it.
+ */
+function EmptyState({ role }: { role?: UserRole }) {
+  const isTutor = role === 'tutor';
+
+  // An institute is a third end of the same action: it goes looking for a teacher, the way a
+  // learner goes looking for a tutor — but through the teacher database, not the public listing.
+  if (role === 'institute') {
+    return (
+      <div className="flex h-[calc(100vh-9rem)] flex-col items-center justify-center rounded-2xl border bg-card p-8 text-center shadow-soft">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+          <MessageSquare className="h-8 w-8" />
+        </div>
+        <h2 className="font-display text-xl font-bold">No messages yet</h2>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          Message a teacher from your search results to start a conversation. Contact details stay
+          hidden on both sides until an offer is accepted.
+        </p>
+        <Button className="mt-5" variant="gradient" asChild>
+          <Link to="/dashboard/institute/teachers">Find teachers</Link>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-9rem)] flex-col items-center justify-center rounded-2xl border bg-card p-8 text-center shadow-soft">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
         <MessageSquare className="h-8 w-8" />
       </div>
-      <h2 className="font-display text-xl font-bold">No conversations yet</h2>
-      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        Book a free 15-minute intro call with a tutor to start a conversation. All chat stays in-app
-        to keep everyone safe.
-      </p>
-      <Button className="mt-5" variant="gradient" onClick={() => (window.location.href = '/tutors')}>
-        Find a tutor
-      </Button>
+      <h2 className="font-display text-xl font-bold">No messages yet</h2>
+
+      {isTutor ? (
+        <>
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            When a student messages you, your conversation opens here. All chat stays in-app, so
+            your phone number stays private until you confirm a booking.
+          </p>
+          {/* Verification, not "find a student": a tutor cannot go looking for one. Being listed
+              at all is what gates this, and that is gated on finishing verification — so the only
+              thing they can actually act on is the step they may not have finished. */}
+          <p className="mt-4 max-w-sm text-xs text-muted-foreground">
+            Students can only find and message you once your verification is complete.
+          </p>
+          <Button className="mt-4" variant="gradient" asChild>
+            <Link to="/dashboard/tutor/verification">Check your verification</Link>
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            Message any tutor from their profile to start a conversation. All chat stays in-app to
+            keep everyone safe.
+          </p>
+          <Button className="mt-5" variant="gradient" asChild>
+            <Link to="/tutors">Find a tutor</Link>
+          </Button>
+        </>
+      )}
     </div>
   );
 }

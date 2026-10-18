@@ -11,6 +11,7 @@ import { AuthHeader } from '@/components/auth/AuthHeader';
 import { SocialButtons } from '@/components/auth/SocialButtons';
 import { useAuthStore } from '@/store/authStore';
 import { normalizeIdentifier } from '@/lib/phone';
+import { dashboardHome } from '@/constants/navigation';
 import { toast } from '@/components/ui/sonner';
 import type { User } from '@/types';
 
@@ -29,7 +30,6 @@ export default function LoginPage() {
   const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string })?.from ?? '/dashboard/tutor';
   // Set when the session ended on its own rather than by signing out. Without it an expiry looks
   // identical to having never signed in, and the person is left guessing why they are back here.
   const sessionEndedMessage = (location.state as { sessionEndedMessage?: string })
@@ -46,15 +46,19 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
+  /**
+   * Where a signed-in account belongs.
+   *
+   * <p>Every role resolves through {@link dashboardHome}, the same map the navigation and the
+   * route guard read, so a role can never be sent somewhere the guard will bounce it out of.
+   * Institutes used to fall through to {@code from} — which defaults to the tutor dashboard —
+   * and were thrown straight back out by the guard on their first successful login.
+   *
+   * <p>Tutors keep their one exception: they land on the profile page rather than the dashboard
+   * root, because a new tutor's first task is completing their profile.
+   */
   const goToDashboard = (user: User) => {
-    const dest =
-      user.role === 'admin'
-        ? '/admin'
-        : user.role === 'tutor'
-          ? '/dashboard/tutor/profile'
-          : user.role === 'student' || user.role === 'parent'
-            ? '/dashboard/student'
-            : from;
+    const dest = user.role === 'tutor' ? '/dashboard/tutor/profile' : dashboardHome(user.role);
     navigate(dest, { replace: true });
   };
 

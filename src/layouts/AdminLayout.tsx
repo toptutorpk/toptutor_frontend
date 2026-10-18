@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Bell, Menu, Search, ShieldCheck } from 'lucide-react';
 import { Container } from '@/components/common/Container';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
 import { ADMIN_NAV } from '@/constants/navigation';
+import { useAdminAlertCount } from '@/hooks/useAdminAlerts';
 
 export function AdminLayout() {
+  const navigate = useNavigate();
+  const { data: alertCount = 0 } = useAdminAlertCount();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -45,9 +48,20 @@ export function AdminLayout() {
 
             <div className="ml-auto flex items-center gap-1.5">
               <ThemeToggle />
-              <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+              {/* Admins' notifications are the open alerts: the badge is their count, the click opens them. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label={alertCount > 0 ? `Alerts, ${alertCount} open` : 'Alerts'}
+                onClick={() => navigate('/admin/alerts')}
+              >
                 <Bell className="h-5 w-5" />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
+                {alertCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
+                    {alertCount > 9 ? '9+' : alertCount}
+                  </span>
+                )}
               </Button>
               <div className="flex items-center gap-2 rounded-md p-1">
                 <Avatar className="h-9 w-9">

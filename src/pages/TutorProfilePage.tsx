@@ -13,16 +13,14 @@ import {
   Heart,
   Share2,
   MessageCircle,
-  PlayCircle,
   CalendarClock,
   Video,
   Home,
   Star,
-  Sparkles,
   Loader2,
 } from 'lucide-react';
 import type { Tutor } from '@/types';
-import { useBookIntro } from '@/hooks/useBookIntro';
+import { useStartChat } from '@/hooks/useTutorContact';
 import { useAuthStore } from '@/store/authStore';
 import { availabilityService, formatRange } from '@/services/availabilityService';
 import { queryKeys } from '@/api/queryKeys';
@@ -30,6 +28,7 @@ import { toast } from '@/components/ui/sonner';
 import { ApiError } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
 import { Container } from '@/components/common/Container';
+import { TutorIntroVideo } from '@/components/tutor/TutorIntroVideo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,7 +38,7 @@ import { RatingStars } from '@/components/common/RatingStars';
 import { VerificationBadge } from '@/components/common/VerificationBadge';
 import { VerificationSteps } from '@/components/tutor/VerificationSteps';
 import { ReviewCard } from '@/components/reviews/ReviewCard';
-import { reviewService } from '@/services/reviewService';
+import { reviewService, type PublicReview, type PublicReviews } from '@/services/reviewService';
 import { BookingPanel } from '@/components/booking/BookingPanel';
 import { LoadingState, ErrorState } from '@/components/common/StateViews';
 import { isPublicTutor } from '@/services/tutorService';
@@ -54,6 +53,37 @@ export default function TutorProfilePage() {
     queryFn: () => reviewService.publicForTutor(Number(tutor!.id)),
     enabled: !!tutor?.id,
   });
+  // Helpful votes: the count and pressed state change at once, then settle to the server's answer.
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const signedIn = useAuthStore((s) => s.isAuthenticated);
+  const reviewsKey = ['reviews', 'public', tutor?.id];
+  const patchReview = (id: number, patch: Partial<PublicReview>) =>
+    qc.setQueryData<PublicReviews>(reviewsKey, (old) =>
+      old ? { ...old, reviews: old.reviews.map((r) => (r.id === id ? { ...r, ...patch } : r)) } : old,
+    );
+  const helpfulVote = useMutation({
+    mutationFn: ({ id, helpful }: { id: number; helpful: boolean }) => reviewService.setHelpful(id, helpful),
+    onMutate: ({ id, helpful }) => {
+      const before = publicReviews?.reviews.find((r) => r.id === id);
+      if (before) patchReview(id, { helpful, helpfulCount: before.helpfulCount + (helpful ? 1 : -1) });
+      return before;
+    },
+    onSuccess: (res, { id }) => patchReview(id, { helpful: res.helpful, helpfulCount: res.helpfulCount }),
+    onError: (e: unknown, { id }, before) => {
+      if (before) patchReview(id, { helpful: before.helpful, helpfulCount: before.helpfulCount });
+      toast.error('Couldn’t save your vote', { description: (e as Error).message });
+    },
+  });
+  const voteHelpful = (id: number, helpful: boolean) => {
+    if (!signedIn) {
+      toast('Sign in to mark reviews as helpful', {
+        action: { label: 'Sign in', onClick: () => navigate('/login') },
+      });
+      return;
+    }
+    if (!helpfulVote.isPending) helpfulVote.mutate({ id, helpful });
+  };
   const isFav = useUIStore((s) => (tutor ? s.favorites.includes(tutor.id) : false));
   const toggleFav = useUIStore((s) => s.toggleFavorite);
   // Session mode (online / home visit) is shared: the availability toggle drives the pricing card.
@@ -77,11 +107,27 @@ export default function TutorProfilePage() {
   const effectiveMode: 'ONLINE' | 'HOME' =
     offersOnline && hasHomeSlots ? sessionMode : hasHomeSlots ? 'HOME' : 'ONLINE';
 
+  // All from real platform activity. The two rates stay "New" until enough learners are behind them,
+  // so one quick reply never reads as 100%. Experience is what the tutor entered; blank shows a dash.
   const stats = [
     { icon: GraduationCap, label: 'Sessions', value: tutor.totalSessions.toLocaleString() },
-    { icon: Clock, label: 'Response rate', value: `${tutor.responseRate}%` },
-    { icon: Repeat, label: 'Repeat hire', value: `${tutor.repeatHireRate}%` },
-    { icon: Award, label: 'Experience', value: `${tutor.experienceYears} yrs` },
+    {
+      icon: Clock,
+      label: 'Response rate',
+      value: tutor.responseRate == null ? 'New' : `${tutor.responseRate}%`,
+      hint: 'Messages from new learners answered within 24 hours (last 90 days)',
+    },
+    {
+      icon: Repeat,
+      label: 'Repeat hire',
+      value: tutor.repeatHireRate == null ? 'New' : `${tutor.repeatHireRate}%`,
+      hint: 'Learners who booked another session after their first',
+    },
+    {
+      icon: Award,
+      label: 'Experience',
+      value: tutor.experienceYears > 0 ? `${tutor.experienceYears} yrs` : '—',
+    },
   ];
 
   return (
@@ -111,11 +157,6 @@ export default function TutorProfilePage() {
                       {tutor.name}
                     </h1>
                     <VerificationBadge status={tutor.verificationStatus} />
-                    {tutor.demoAvailable && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-                        <Sparkles className="h-3 w-3" /> Free Demo
-                      </span>
-                    )}
                     {tutor.isOnline && (
                       <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600">
                         <span className="relative flex h-2 w-2">
@@ -155,7 +196,7 @@ export default function TutorProfilePage() {
               {/* Stats */}
               <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {stats.map((s) => (
-                  <div key={s.label} className="rounded-xl border bg-secondary/40 p-3 text-center">
+                  <div key={s.label} title={s.hint} className="rounded-xl border bg-secondary/40 p-3 text-center">
                     <s.icon className="mx-auto mb-1 h-4 w-4 text-brand-500" />
                     <div className="font-display text-lg font-bold">{s.value}</div>
                     <div className="text-xs text-muted-foreground">{s.label}</div>
@@ -178,20 +219,19 @@ export default function TutorProfilePage() {
 
               {/* About */}
               <TabsContent value="about" className="space-y-6">
-                <Section title="Video introduction">
-                  <div className="group relative aspect-video overflow-hidden rounded-2xl border bg-slate-900">
-                    <img
-                      src={tutor.coverUrl}
-                      alt=""
-                      className="h-full w-full object-cover opacity-60"
+                {/* Renders nothing while the video is still encoding, so a tutor who is live but
+                    whose cut has not been published yet does not show an empty frame promising
+                    something that is not there. */}
+                {(tutor.videoIntroYoutubeId || tutor.videoIntroUrl) && (
+                  <Section title="Video introduction">
+                    <TutorIntroVideo
+                      youtubeId={tutor.videoIntroYoutubeId}
+                      videoUrl={tutor.videoIntroUrl}
+                      posterUrl={tutor.coverUrl}
+                      name={tutor.name}
                     />
-                    <button className="absolute inset-0 flex items-center justify-center">
-                      <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-white/90 text-brand-600 shadow-lg transition-transform group-hover:scale-110">
-                        <PlayCircle className="h-9 w-9" />
-                      </span>
-                    </button>
-                  </div>
-                </Section>
+                  </Section>
+                )}
                 <Section title="About me">
                   <p className="leading-relaxed text-foreground/90">{tutor.bio}</p>
                 </Section>
@@ -311,15 +351,27 @@ export default function TutorProfilePage() {
                       </div>
                       <Separator orientation="vertical" className="hidden h-20 sm:block" />
                       <div className="flex-1 space-y-1.5">
+                        {/* Share of real reviews at each star rating. */}
                         {[5, 4, 3, 2, 1].map((star) => {
-                          const pct = star === 5 ? 78 : star === 4 ? 16 : star === 3 ? 4 : 1;
+                          const counts = publicReviews?.ratingCounts ?? {};
+                          const total = Object.values(counts).reduce((a, b) => a + b, 0);
+                          const count = counts[String(star)] ?? 0;
+                          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
                           return (
                             <div key={star} className="flex items-center gap-2 text-sm">
                               <span className="w-3 text-muted-foreground">{star}</span>
                               <div className="h-2 flex-1 overflow-hidden rounded-[3px] bg-secondary">
-                                <div className="h-full rounded-[3px] bg-gold-400" style={{ width: `${pct}%` }} />
+                                <div
+                                  className="h-full rounded-[3px] bg-gold-400 transition-[width] duration-500"
+                                  style={{ width: `${pct}%` }}
+                                />
                               </div>
-                              <span className="w-8 text-right text-xs text-muted-foreground">{pct}%</span>
+                              <span
+                                className="w-8 text-right text-xs text-muted-foreground"
+                                title={`${count} review${count === 1 ? '' : 's'}`}
+                              >
+                                {pct}%
+                              </span>
                             </div>
                           );
                         })}
@@ -338,7 +390,11 @@ export default function TutorProfilePage() {
                             comment: r.comment ?? '',
                             date: r.date,
                             tutorResponse: r.tutorResponse ?? undefined,
+                            helpfulCount: r.helpfulCount,
                           }}
+                          helpful={r.helpful}
+                          own={r.own}
+                          onHelpful={() => voteHelpful(r.id, !r.helpful)}
                         />
                       ))}
                     </div>
@@ -366,17 +422,20 @@ export default function TutorProfilePage() {
 }
 
 /**
- * Books the free intro call (the gate that unlocks messaging) and jumps into the chat.
- * Guests are sent to log in; tutors/admins are nudged to use a learner account.
+ * Opens the chat with a tutor and jumps into it. Deliberately books nothing — asking a tutor a
+ * question is not a request for their free intro call, which has its own button in the booking
+ * panel and only appears for tutors offering a demo slot.
+ *
+ * <p>Guests are sent to log in; tutors/admins are nudged to use a learner account.
  */
 function MessageTutorButton({ tutor }: { tutor: Tutor }) {
-  const { book, loading } = useBookIntro();
+  const { start, loading } = useStartChat();
   return (
     <Button
       variant="outline"
       className="mt-4 w-full"
       disabled={loading}
-      onClick={() => book(Number(tutor.id), { tutorName: tutor.name, slug: tutor.slug })}
+      onClick={() => start(Number(tutor.id), { tutorName: tutor.name, slug: tutor.slug })}
     >
       <MessageCircle className="h-4 w-4" /> {loading ? 'Opening…' : 'Send a message'}
     </Button>

@@ -26,17 +26,17 @@ export const TESTIMONIALS: Testimonial[] = [
 
 export const SUCCESS_STORIES = [
   { id: 'ss1', metric: '+2 Grades', label: 'Average improvement', detail: 'Students see a 2-grade jump within one term of consistent sessions.' },
-  { id: 'ss2', metric: '48 hours', label: 'Guaranteed payout', detail: 'Tutors receive secure payment within 48 hours of session confirmation.' },
+  { id: 'ss2', metric: '48 hours', label: 'Guaranteed payout', detail: 'Session earnings clear 48 hours after the class ends, then go out to your account.' },
   { id: 'ss3', metric: '100%', label: 'Verified tutors', detail: 'Every listed tutor passes our strict 6-step verification process.' },
 ];
 
 export const FAQS = [
   { q: 'How does the 6-step verification work?', a: 'Every tutor must pass identity (CNIC/NADRA), education credential, criminal background, teaching experience, an introduction video, and a final admin review before receiving the Verified Badge.' },
-  { q: 'Is my payment safe?', a: 'Yes. We use an escrow model — your payment is held securely and only released to the tutor 48 hours after you confirm the session was completed. You have a 24-hour window to raise any dispute.' },
+  { q: 'Is my payment safe?', a: 'Yes. We use an escrow model — your payment is held securely and only released to the tutor 48 hours after the session ends. You have that window to raise any dispute.' },
   { q: 'What payment methods are supported?', a: 'JazzCash, Easypaisa, and all major credit/debit cards. Full refunds are available for sessions cancelled 2+ hours before the start time.' },
   { q: 'Can I try a tutor before committing?', a: 'Absolutely. Book a free 15-minute intro call or a discounted trial session with any tutor before booking a full package.' },
   { q: 'Do you stay private until I book?', a: 'Yes. All messaging is in-app and encrypted. The tutor only sees your phone number once a booking is confirmed.' },
-  { q: 'How do tutors get paid?', a: 'Tutors keep 80–90% of every session fee (commission decreases as they complete more sessions) with automatic payout within 48 hours.' },
+  { q: 'How do tutors get paid?', a: 'Tutors keep 80–90% of every session fee (commission decreases as they complete more sessions). Earnings clear 48 hours after each session ends, and are then paid out to your JazzCash, Easypaisa or bank account.' },
 ];
 
 export const PRICING_TIERS = [
@@ -62,14 +62,19 @@ export const PRICING_TIERS = [
     cta: 'Go Premium',
     highlighted: true,
   },
+  // Only the paid institute tier is advertised publicly. The free tier exists and is offered
+  // inside the institute dashboard's Billing screen, but leading with it here would sell the
+  // free plan to visitors who have not yet seen what the paid one does. The price must stay in
+  // step with that screen — the two advertised different numbers for a while, which is the sort
+  // of thing a customer notices at exactly the wrong moment.
   {
     id: 'institute',
-    name: 'Institute',
-    price: 4999,
+    name: 'Institute — Pro',
+    price: 1999,
     period: 'month',
     audience: 'institutes',
-    description: 'Hire verified teachers at scale.',
-    features: ['Verified teacher database access', 'Unlimited job postings', 'Bulk shortlisting & invites', 'Digital contracts & e-signature', 'Monthly retainer tools', 'Dedicated account manager'],
+    description: 'Approach any verified teacher directly. Rs 1,500/mo billed six-monthly.',
+    features: ['Unlimited job posts', 'Direct offers to any teacher', 'Full profiles before they apply', 'Priority in the teacher job feed', 'Digital contracts & e-signature', 'Payroll records'],
     cta: 'Start Hiring',
     highlighted: false,
   },

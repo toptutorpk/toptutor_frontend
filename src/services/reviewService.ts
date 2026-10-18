@@ -46,6 +46,12 @@ export interface PublicReview {
   comment: string | null;
   date: string; // ISO
   tutorResponse: string | null;
+  /** How many people marked it helpful. */
+  helpfulCount: number;
+  /** The signed-in viewer marked it helpful (false when signed out). */
+  helpful: boolean;
+  /** The viewer wrote it or is the reviewed tutor — they can't vote on it. */
+  own: boolean;
 }
 
 /** Public reviews block for a tutor (mirrors backend PublicReviewsResponse). */
@@ -53,6 +59,14 @@ export interface PublicReviews {
   rating: number | null;
   reviewCount: number;
   reviews: PublicReview[];
+  /** How many reviews have each star rating, keys "1".."5". */
+  ratingCounts: Record<string, number>;
+}
+
+/** A review's helpful count after the viewer's vote. */
+export interface HelpfulResult {
+  helpfulCount: number;
+  helpful: boolean;
 }
 
 export const reviewService = {
@@ -60,14 +74,19 @@ export const reviewService = {
   create: (bookingId: number, rating: number, comment?: string) =>
     http.post<StudentReview>('/reviews', { bookingId, rating, comment }),
   /** Student: reviews I've written. */
-  mine: () => http.get<StudentReview[]>('/reviews/mine'),
+  mine: () => http.get<StudentReview[]>('/reviews/mine', { params: { size: 100 } }),
   /** Student: completed sessions I can still review. */
-  pending: () => http.get<PendingReview[]>('/reviews/pending'),
+  pending: () => http.get<PendingReview[]>('/reviews/pending', { params: { size: 100 } }),
   /** Tutor: reviews I've received. */
-  received: () => http.get<TutorReview[]>('/reviews/received'),
+  received: () => http.get<TutorReview[]>('/reviews/received', { params: { size: 100 } }),
   /** Tutor: reply to a review I received. */
   respond: (reviewId: number, response: string) =>
     http.post<void>(`/reviews/${reviewId}/response`, { response }),
   /** Public: a tutor's aggregate rating + review list. */
   publicForTutor: (tutorId: number) => http.get<PublicReviews>(`/public/tutors/${tutorId}/reviews`),
+  /** Signed-in: mark a review helpful, or take the vote back. One vote per person. */
+  setHelpful: (reviewId: number, helpful: boolean) =>
+    helpful
+      ? http.put<HelpfulResult>(`/reviews/${reviewId}/helpful`)
+      : http.del<HelpfulResult>(`/reviews/${reviewId}/helpful`),
 };

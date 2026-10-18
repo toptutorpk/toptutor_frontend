@@ -17,6 +17,7 @@ import {
   Clock,
   AlertTriangle,
   ShieldAlert,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,8 @@ import {
 import { toast } from '@/components/ui/sonner';
 import { cn, getInitials } from '@/lib/utils';
 import { toNationalDisplay } from '@/lib/phone';
+import { youtubeIdFrom } from '@/lib/youtube';
+import type { IntroVideoStatus } from '@/services/adminService';
 import { adminService } from '@/services/adminService';
 import type { DocStatus, VerificationSlot } from '@/services/verificationService';
 
@@ -197,6 +200,9 @@ export default function AdminTutorReview() {
         </div>
       </div>
 
+      {/* Where the branded introduction video ended up. */}
+      <IntroVideoBanner intro={data.introVideo} />
+
       {/* Documents */}
       <div className="space-y-4">
         <h2 className="font-display text-lg font-bold">Documents</h2>
@@ -337,7 +343,18 @@ function DocumentCard({
   return (
     <div className="overflow-hidden rounded-xl border">
       <div className="relative aspect-[1.7] bg-secondary/40">
-        {slot.kind === 'video' ? (
+        {slot.kind === 'video' && youtubeIdFrom(slot.url) ? (
+          // A video published to YouTube has its document repointed at the watch URL, which a
+          // <video> element cannot play — it would render a dead black box. Embedded instead, so
+          // a reviewer sees the same cut a visitor will.
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${youtubeIdFrom(slot.url)}`}
+            title={slot.label}
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="h-full w-full border-0"
+          />
+        ) : slot.kind === 'video' ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
           <video src={slot.url} controls className="h-full w-full object-cover" />
         ) : slot.kind === 'image' ? (
@@ -433,6 +450,68 @@ function CredentialList({ title, items }: { title: string; items?: { title: stri
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Says where a tutor's introduction video was published, and whether it is live yet.
+ *
+ * <p>Exists because the pipeline is asynchronous and invisible: an admin approves the video, and
+ * anything from seconds to four hours later it appears somewhere else entirely. Without this,
+ * the only way to answer "did it publish, and where?" was to query the database. It also
+ * distinguishes the three states that look identical on the profile — still queued, published,
+ * and failed — which call for waiting, nothing, and intervention respectively.
+ */
+function IntroVideoBanner({ intro }: { intro?: IntroVideoStatus }) {
+  // No job at all: the video has not been approved yet, so there is nothing to report and a
+  // banner would only add noise to a review that has not reached that step.
+  if (!intro?.status) return null;
+
+  const youtubeId = youtubeIdFrom(intro.outputUrl) ?? intro.youtubeId;
+  const destination = intro.uploadMode === 'Y' || youtubeId ? 'YouTube' : 'Cloudflare R2';
+
+  const tone =
+    intro.status === 'UPLOADED' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+      : intro.status === 'FAILED' ? 'border-red-500/30 bg-red-500/10 text-red-700'
+        : 'border-amber-500/30 bg-amber-500/10 text-amber-700';
+
+  return (
+    <div className={cn('rounded-2xl border p-4 text-sm shadow-soft', tone)}>
+      <div className="flex flex-wrap items-center gap-2">
+        {intro.ready ? <CheckCircle2 className="h-4 w-4" />
+          : intro.status === 'FAILED' ? <AlertTriangle className="h-4 w-4" />
+            : <Clock className="h-4 w-4" />}
+        <span className="font-semibold">
+          {intro.ready ? `Introduction video published to ${destination}`
+            : intro.status === 'FAILED' ? 'Introduction video failed to publish'
+              : `Introduction video ${intro.status.toLowerCase()} — not published yet`}
+        </span>
+      </div>
+
+      <p className="mt-1.5 text-xs opacity-90">
+        {intro.ready
+          ? 'The branded cut is live and will play on the public profile.'
+          : intro.status === 'FAILED'
+            ? `Failed after ${intro.attempts} attempt(s). The tutor's profile will show no video until this is resolved.`
+            : 'The encoder has not picked this up yet. The public profile shows no video until it does — approving the application does not wait for it.'}
+      </p>
+
+      {intro.lastError && (
+        <p className="mt-1.5 break-words font-mono text-[11px] opacity-80">{intro.lastError}</p>
+      )}
+
+      {intro.ready && (youtubeId || intro.outputUrl) && (
+        <a
+          href={youtubeId ? `https://youtu.be/${youtubeId}` : intro.outputUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2"
+        >
+          <VideoIcon className="h-3.5 w-3.5" />
+          {youtubeId ? `Open on YouTube (${youtubeId})` : 'Open the published file'}
+        </a>
+      )}
     </div>
   );
 }
