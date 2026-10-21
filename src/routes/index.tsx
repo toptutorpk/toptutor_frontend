@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
@@ -83,15 +83,17 @@ const AdminReports = lazy(() => import('@/pages/admin/Reports'));
 const AdminTutorReview = lazy(() => import('@/pages/admin/TutorReview'));
 const AdminTutors = lazy(() => import('@/pages/admin/Tutors'));
 const AdminStudents = lazy(() => import('@/pages/admin/Students'));
+const AdminLearnerProfile = lazy(() => import('@/pages/admin/LearnerProfile'));
 const AdminInstitutes = lazy(() => import('@/pages/admin/Institutes'));
 const AdminInstituteReview = lazy(() => import('@/pages/admin/InstituteReview'));
 const AdminBookings = lazy(() => import('@/pages/admin/Bookings'));
+const AdminBookingDetail = lazy(() => import('@/pages/admin/BookingDetail'));
 const AdminPayments = lazy(() => import('@/pages/admin/Payments'));
 const AdminPayoutAccounts = lazy(() => import('@/pages/admin/PayoutAccounts'));
 const AdminRefunds = lazy(() => import('@/pages/admin/Refunds'));
 const AdminInstituteBilling = lazy(() => import('@/pages/admin/InstituteBilling'));
 const AdminAnalytics = lazy(() => import('@/pages/admin/Analytics'));
-const AdminSettings = lazy(() => import('@/pages/admin/Settings'));
+const AdminSettings = lazy(() => import('@/pages/admin/SystemConfigurations'));
 
 function S({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -700,6 +702,14 @@ const routes: RouteObject[] = [
             ),
           },
           {
+            path: 'students/:id',
+            element: (
+              <S>
+                <AdminLearnerProfile />
+              </S>
+            ),
+          },
+          {
             path: 'students',
             element: (
               <S>
@@ -720,6 +730,22 @@ const routes: RouteObject[] = [
             element: (
               <S>
                 <AdminInstitutes />
+              </S>
+            ),
+          },
+          {
+            path: 'bookings/accounts/:accountId',
+            element: (
+              <S>
+                <AdminBookings />
+              </S>
+            ),
+          },
+          {
+            path: 'bookings/:id',
+            element: (
+              <S>
+                <AdminBookingDetail />
               </S>
             ),
           },
@@ -771,8 +797,9 @@ const routes: RouteObject[] = [
               </S>
             ),
           },
+          { path: 'settings', element: <Navigate to="/admin/system-configurations" replace /> },
           {
-            path: 'settings',
+            path: 'system-configurations',
             element: (
               <S>
                 <AdminSettings />

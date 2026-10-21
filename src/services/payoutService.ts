@@ -11,7 +11,7 @@ import { catalogService, type CatalogItem } from '@/services/catalogService';
    ========================================================================== */
 
 export type PayoutMethod = 'MOBILE_WALLET' | 'BANK';
-/** ACTIVE the moment the tutor confirms their password; REJECTED only by an admin. */
+/** ACTIVE the moment the tutor verifies their email code; REJECTED only by an admin. */
 export type PayoutAccountStatus = 'ACTIVE' | 'REJECTED';
 
 export interface PayoutAccountView {
@@ -41,8 +41,6 @@ export interface SavePayoutAccountRequest {
   provider: string;
   accountTitle: string;
   accountNumber: string;
-  /** The tutor's TopTutor account password — a session alone cannot move their income. */
-  password: string;
 }
 
 /** One entry in an account's change history. */
@@ -78,14 +76,28 @@ export interface AdminPayoutAccount {
   history?: PayoutAuditEntry[];
 }
 
+export interface PayoutConfirmation {
+  challengeId: string;
+  maskedEmail: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  devCode?: string;
+}
+
 export const payoutService = {
   async get(): Promise<PayoutAccountView> {
     return http.get<PayoutAccountView>('/payout-account');
   },
 
-  /** PUT: a tutor has at most one payout account, and saving replaces it. */
-  async save(request: SavePayoutAccountRequest): Promise<PayoutAccountView> {
-    return http.put<PayoutAccountView>('/payout-account', request);
+  startConfirmation(details: SavePayoutAccountRequest): Promise<PayoutConfirmation> {
+    return http.post('/payout-account/confirmation/start', details);
+  },
+  confirm(
+    challengeId: string,
+    code: string,
+    details: SavePayoutAccountRequest,
+  ): Promise<PayoutAccountView> {
+    return http.post('/payout-account/confirmation/confirm', { challengeId, code, details });
   },
 
   /** The banks and wallets a tutor may choose, straight from the database. */
@@ -181,7 +193,10 @@ export const withdrawalService = {
 
 export const adminWithdrawalService = {
   async list(status?: PayoutRequestStatus): Promise<AdminPayoutRequest[]> {
-    return http.getAllPages<AdminPayoutRequest>('/admin/payouts', status ? { params: { status } } : undefined);
+    return http.getAllPages<AdminPayoutRequest>(
+      '/admin/payouts',
+      status ? { params: { status } } : undefined,
+    );
   },
 
   /**

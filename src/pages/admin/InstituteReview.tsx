@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { ImageWithSkeleton } from '@/components/common/ImageWithSkeleton';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  ShieldAlert,
   Check,
   Clock,
   Eye,
@@ -41,16 +43,41 @@ import type { DocStatus } from '@/services/verificationService';
 /** Same treatment as the tutor review screen, so a reviewer reads one visual language. */
 const DOC_BADGE: Record<DocStatus, { label: string; cls: string }> = {
   PENDING: { label: 'Pending', cls: 'bg-secondary text-muted-foreground' },
-  UNDER_REVIEW: { label: 'Under review', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400' },
-  APPROVED: { label: 'Approved', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' },
-  REJECTED: { label: 'Rejected', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400' },
+  UNDER_REVIEW: {
+    label: 'Under review',
+    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+  },
+  APPROVED: {
+    label: 'Approved',
+    cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+  },
 };
 
 const ACCOUNT_BADGE: Record<InstituteStatus, { label: string; cls: string; icon: typeof Clock }> = {
-  APPLIED: { label: 'Draft with institute', cls: 'bg-secondary text-muted-foreground', icon: FileText },
-  UNDER_REVIEW: { label: 'Awaiting review', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400', icon: Clock },
-  VERIFIED: { label: 'Verified', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400', icon: ShieldCheck },
-  SUSPENDED: { label: 'Suspended', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400', icon: AlertTriangle },
+  APPLIED: {
+    label: 'Draft with institute',
+    cls: 'bg-secondary text-muted-foreground',
+    icon: FileText,
+  },
+  UNDER_REVIEW: {
+    label: 'Awaiting review',
+    cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+    icon: Clock,
+  },
+  VERIFIED: {
+    label: 'Verified',
+    cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+    icon: ShieldCheck,
+  },
+  SUSPENDED: {
+    label: 'Suspended',
+    cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+    icon: AlertTriangle,
+  },
 };
 
 /**
@@ -66,6 +93,12 @@ const ACCOUNT_BADGE: Record<InstituteStatus, { label: string; cls: string; icon:
  */
 export default function AdminInstituteReview() {
   const { id } = useParams();
+  const location = useLocation();
+  const requestedFrom = (location.state as { from?: unknown } | null)?.from;
+  const backTo =
+    typeof requestedFrom === 'string' && /^\/admin\/institutes(?:\?|$)/.test(requestedFrom)
+      ? requestedFrom
+      : '/admin/institutes';
   const instituteId = Number(id);
   const qc = useQueryClient();
 
@@ -77,8 +110,14 @@ export default function AdminInstituteReview() {
 
   // One dialog for both rejections: a document and the whole application need the same thing —
   // a reason, typed once, before a decision the institute has to act on.
-  const [reject, setReject] = useState<{ kind: 'doc' | 'app'; slotKey?: string; label?: string } | null>(null);
+  const [reject, setReject] = useState<{
+    kind: 'doc' | 'app';
+    slotKey?: string;
+    label?: string;
+  } | null>(null);
   const [notes, setNotes] = useState('');
+  const [suspending, setSuspending] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'institute', instituteId] });
@@ -89,7 +128,10 @@ export default function AdminInstituteReview() {
   const approveDoc = useMutation({
     mutationFn: (slotKey: string) =>
       adminInstituteService.reviewDocument(instituteId, slotKey, true),
-    onSuccess: () => { invalidate(); toast.success('Document approved'); },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Document approved');
+    },
     onError: (e) => toast.error('Could not approve document', { description: message(e) }),
   });
 
@@ -98,7 +140,12 @@ export default function AdminInstituteReview() {
     // neither is used — the query is refetched either way.
     mutationFn: async (): Promise<void> => {
       if (reject?.kind === 'doc') {
-        await adminInstituteService.reviewDocument(instituteId, reject.slotKey as string, false, notes.trim());
+        await adminInstituteService.reviewDocument(
+          instituteId,
+          reject.slotKey as string,
+          false,
+          notes.trim(),
+        );
         return;
       }
       await adminInstituteService.decide(instituteId, false, notes.trim());
@@ -114,8 +161,22 @@ export default function AdminInstituteReview() {
 
   const approveApp = useMutation({
     mutationFn: () => adminInstituteService.decide(instituteId, true),
-    onSuccess: () => { invalidate(); toast.success('Institute verified — hiring access enabled'); },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Institute verified — hiring access enabled');
+    },
     onError: (e) => toast.error('Could not approve the institute', { description: message(e) }),
+  });
+
+  const suspendAccount = useMutation({
+    mutationFn: () => adminInstituteService.suspend(instituteId, suspendReason.trim()),
+    onSuccess: () => {
+      invalidate();
+      setSuspending(false);
+      setSuspendReason('');
+      toast.success('Institute suspended');
+    },
+    onError: (e) => toast.error('Could not suspend institute', { description: message(e) }),
   });
 
   if (isLoading || !data) {
@@ -134,17 +195,23 @@ export default function AdminInstituteReview() {
   const status = profile.status;
   const badge = ACCOUNT_BADGE[status] ?? ACCOUNT_BADGE.APPLIED;
   const BadgeIcon = badge.icon;
-  const busy = approveDoc.isPending || rejectMutation.isPending || approveApp.isPending;
+  const busy =
+    approveDoc.isPending ||
+    rejectMutation.isPending ||
+    approveApp.isPending ||
+    suspendAccount.isPending;
   // Only an institute that has actually submitted can be decided on; the service enforces this
   // too, but a disabled button explains it better than a 409 does.
   const decidable = status === 'UNDER_REVIEW';
   const withDocuments = verification.steps.filter((s) => s.slots.some((sl) => sl.url));
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className={cn('space-y-5', decidable && 'pb-24')}>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild aria-label="Back">
-          <Link to="/admin/institutes"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link to={backTo}>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
         <div className="flex-1">
           <h1 className="font-display text-2xl font-bold">Review institute</h1>
@@ -152,7 +219,12 @@ export default function AdminInstituteReview() {
             Check each document against the legal identity, then finalise.
           </p>
         </div>
-        <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold', badge.cls)}>
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold',
+            badge.cls,
+          )}
+        >
           <BadgeIcon className="h-3.5 w-3.5" />
           {badge.label}
         </span>
@@ -168,7 +240,11 @@ export default function AdminInstituteReview() {
         <div className="p-5">
           <div className="flex flex-wrap items-start gap-4">
             <Avatar className="h-20 w-20 rounded-xl">
-              <AvatarImage src={profile.logoUrl} alt={profile.displayName ?? 'Institute'} className="object-contain" />
+              <AvatarImage
+                src={profile.logoUrl}
+                alt={profile.displayName ?? 'Institute'}
+                className="object-contain"
+              />
               <AvatarFallback className="rounded-xl text-xl">
                 {getInitials(profile.displayName || profile.legalName || 'IN')}
               </AvatarFallback>
@@ -268,15 +344,19 @@ export default function AdminInstituteReview() {
                 {step.notes && <span className="text-xs text-red-600">{step.notes}</span>}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {step.slots.filter((sl) => sl.url).map((slot) => (
-                  <DocumentCard
-                    key={slot.key}
-                    slot={slot}
-                    busy={busy}
-                    onApprove={() => approveDoc.mutate(slot.key)}
-                    onReject={() => setReject({ kind: 'doc', slotKey: slot.key, label: slot.label })}
-                  />
-                ))}
+                {step.slots
+                  .filter((sl) => sl.url)
+                  .map((slot) => (
+                    <DocumentCard
+                      key={slot.key}
+                      slot={slot}
+                      busy={busy}
+                      onApprove={() => approveDoc.mutate(slot.key)}
+                      onReject={() =>
+                        setReject({ kind: 'doc', slotKey: slot.key, label: slot.label })
+                      }
+                    />
+                  ))}
               </div>
             </div>
           ))
@@ -284,38 +364,123 @@ export default function AdminInstituteReview() {
       </div>
 
       {/* ---- Sticky decision bar -------------------------------------------- */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 p-4 backdrop-blur md:left-64">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <p className="hidden text-sm text-muted-foreground sm:block">
-            {decidable
-              ? 'Approving verifies the institute, locks every document and enables hiring.'
-              : status === 'APPLIED'
-                ? 'This institute has not submitted yet — there is nothing to decide.'
-                : `This institute is ${badge.label.toLowerCase()}.`}
-          </p>
-          <div className="flex flex-1 justify-end gap-2">
-            <Button
-              variant="outline"
-              className="text-red-600"
-              disabled={busy || !decidable}
-              onClick={() => setReject({ kind: 'app' })}
-            >
-              <X className="h-4 w-4" /> Send back
-            </Button>
-            <Button
-              variant="gradient"
-              disabled={busy || !decidable}
-              onClick={() => approveApp.mutate()}
-            >
-              {approveApp.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Approve institute
-            </Button>
+      {decidable && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 p-4 backdrop-blur md:left-64">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+            <p className="hidden text-sm text-muted-foreground sm:block">
+              {decidable
+                ? 'Approving verifies the institute, locks every document and enables hiring.'
+                : status === 'APPLIED'
+                  ? 'This institute has not submitted yet — there is nothing to decide.'
+                  : `This institute is ${badge.label.toLowerCase()}.`}
+            </p>
+            <div className="flex flex-1 justify-end gap-2">
+              <Button
+                variant="outline"
+                className="text-red-600"
+                disabled={busy || !decidable}
+                onClick={() => setReject({ kind: 'app' })}
+              >
+                <X className="h-4 w-4" /> Send back
+              </Button>
+              <Button
+                variant="gradient"
+                disabled={busy || !decidable}
+                onClick={() => approveApp.mutate()}
+              >
+                {approveApp.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Approve institute
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {status === 'VERIFIED' && (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-5 shadow-soft">
+          <div>
+            <h2 className="font-display text-lg font-bold">Account actions</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Suspend this institute’s hiring access when account intervention is required.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10"
+            disabled={busy}
+            onClick={() => setSuspending(true)}
+          >
+            <ShieldAlert className="h-4 w-4" /> Suspend account
+          </Button>
+        </section>
+      )}
+
+      <Dialog
+        open={suspending}
+        onOpenChange={(open) => {
+          if (!open && !suspendAccount.isPending) {
+            setSuspending(false);
+            setSuspendReason('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Suspend institute account?</DialogTitle>
+            <DialogDescription>
+              This withdraws the institute’s hiring access. Provide a reason that the institute can
+              see.
+            </DialogDescription>
+          </DialogHeader>
+          <label htmlFor="institute-suspend-reason" className="text-sm font-medium">
+            Reason
+          </label>
+          <Textarea
+            id="institute-suspend-reason"
+            rows={4}
+            maxLength={500}
+            value={suspendReason}
+            disabled={suspendAccount.isPending}
+            onChange={(e) => setSuspendReason(e.target.value)}
+            placeholder="Explain why hiring access is being withdrawn."
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={suspendAccount.isPending}
+              onClick={() => {
+                setSuspending(false);
+                setSuspendReason('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy || !suspendReason.trim() || status !== 'VERIFIED'}
+              onClick={() => suspendAccount.mutate()}
+            >
+              {suspendAccount.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Suspend
+              account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ---- Rejection dialog ------------------------------------------------ */}
-      <Dialog open={reject !== null} onOpenChange={(open) => { if (!open) { setReject(null); setNotes(''); } }}>
+      <Dialog
+        open={reject !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReject(null);
+            setNotes('');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -339,7 +504,13 @@ export default function AdminInstituteReview() {
             }
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setReject(null); setNotes(''); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReject(null);
+                setNotes('');
+              }}
+            >
               Cancel
             </Button>
             {/* The server refuses a reason-less rejection; disabling here says so sooner. */}
@@ -379,7 +550,16 @@ function DocumentCard({
     <div className="overflow-hidden rounded-xl border">
       <div className="relative aspect-[1.7] bg-secondary/40">
         {slot.kind === 'image' ? (
-          <img src={slot.url} alt={slot.label} className="h-full w-full object-cover" />
+          slot.key.includes('cnic') ? (
+            <ImageWithSkeleton
+              skeletonVariant="document"
+              src={slot.url}
+              alt={slot.label}
+              containerClassName="h-full w-full"
+            />
+          ) : (
+            <img src={slot.url} alt={slot.label} className="h-full w-full object-cover" />
+          )
         ) : (
           <a
             href={slot.url}
@@ -392,8 +572,19 @@ function DocumentCard({
           </a>
         )}
         <div className="absolute left-2 top-2">
-          <span className={cn('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold', badge.cls)}>
-            {approved ? <Lock className="h-3 w-3" /> : status === 'REJECTED' ? <AlertTriangle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold',
+              badge.cls,
+            )}
+          >
+            {approved ? (
+              <Lock className="h-3 w-3" />
+            ) : status === 'REJECTED' ? (
+              <AlertTriangle className="h-3 w-3" />
+            ) : (
+              <Clock className="h-3 w-3" />
+            )}
             {badge.label}
           </span>
         </div>
@@ -401,20 +592,26 @@ function DocumentCard({
       <div className="p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium">{slot.label}</span>
-          <a
-            href={slot.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="text-muted-foreground hover:text-brand-600"
-            aria-label={`Open ${slot.label} in a new tab`}
-          >
-            <Eye className="h-4 w-4" />
-          </a>
+          <Button variant="outline" size="sm" className="shrink-0" asChild>
+            <a
+              href={slot.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`View ${slot.label} in a new tab`}
+            >
+              <Eye className="h-4 w-4" /> View
+            </a>
+          </Button>
         </div>
         {/* An expiring document is only as good as its date, so the reviewer sees it here rather
             than having to open the file to find out it lapsed last year. */}
         {slot.expiresAt && (
-          <p className={cn('mt-1 text-xs', isPast(slot.expiresAt) ? 'font-medium text-red-600' : 'text-muted-foreground')}>
+          <p
+            className={cn(
+              'mt-1 text-xs',
+              isPast(slot.expiresAt) ? 'font-medium text-red-600' : 'text-muted-foreground',
+            )}
+          >
             {isPast(slot.expiresAt) ? 'Expired ' : 'Expires '}
             {slot.expiresAt}
           </p>
@@ -428,10 +625,22 @@ function DocumentCard({
           </p>
         ) : (
           <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="gradient" className="flex-1" disabled={busy} onClick={onApprove}>
+            <Button
+              size="sm"
+              variant="gradient"
+              className="flex-1"
+              disabled={busy}
+              onClick={onApprove}
+            >
               <Check className="h-4 w-4" /> Approve
             </Button>
-            <Button size="sm" variant="outline" className="flex-1 text-red-600" disabled={busy} onClick={onReject}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-red-600"
+              disabled={busy}
+              onClick={onReject}
+            >
               <X className="h-4 w-4" /> Reject
             </Button>
           </div>

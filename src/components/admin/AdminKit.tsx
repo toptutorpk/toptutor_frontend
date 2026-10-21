@@ -57,22 +57,49 @@ export function DataTable<T>({
   rows,
   getKey,
   empty = 'No records found.',
+  embedded = false,
+  scrollable = false,
 }: {
   columns: Column<T>[];
   rows: T[];
   getKey: (row: T) => string;
   empty?: string;
+  /** Omit the outer card when a parent panel also contains pagination. */
+  embedded?: boolean;
+  /** Constrain rows to the parent's height and keep headings visible. */
+  scrollable?: boolean;
 }) {
   const alignCls = (a?: 'left' | 'right' | 'center') =>
     a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
   return (
-    <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-      <div className="overflow-x-auto">
+    <div
+      className={cn(
+        embedded ? 'bg-card' : 'overflow-hidden rounded-2xl border bg-card shadow-soft',
+        scrollable && 'flex h-full min-h-0 flex-col',
+      )}
+    >
+      <div
+        className={
+          scrollable ? 'min-h-0 flex-1 overflow-auto overscroll-contain' : 'overflow-x-auto'
+        }
+        tabIndex={scrollable ? 0 : undefined}
+        role={scrollable ? 'region' : undefined}
+        aria-label={scrollable ? 'Scrollable records' : undefined}
+      >
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
               {columns.map((c, i) => (
-                <th key={i} className={cn('px-4 py-3 font-semibold', alignCls(c.align), c.className)}>
+                <th
+                  key={i}
+                  className={cn(
+                    'px-4 py-3 font-semibold',
+                    scrollable &&
+                      'sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--color-border)]',
+                    alignCls(c.align),
+                    c.className,
+                  )}
+                >
                   {c.header}
                 </th>
               ))}
@@ -90,10 +117,10 @@ export function DataTable<T>({
             ))}
           </tbody>
         </table>
+        {rows.length === 0 && (
+          <div className="p-10 text-center text-sm text-muted-foreground">{empty}</div>
+        )}
       </div>
-      {rows.length === 0 && (
-        <div className="p-10 text-center text-sm text-muted-foreground">{empty}</div>
-      )}
     </div>
   );
 }
@@ -114,15 +141,22 @@ export function PersonCell({ name, sub, avatar }: { name: string; sub?: string; 
   );
 }
 
-const ACCOUNT_META: Record<AccountStatus, { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
+const ACCOUNT_META: Record<
+  AccountStatus,
+  { label: string; variant: 'success' | 'warning' | 'destructive' }
+> = {
   active: { label: 'Active', variant: 'success' },
   pending: { label: 'Pending', variant: 'warning' },
   suspended: { label: 'Suspended', variant: 'destructive' },
 };
 
-export function AccountBadge({ status }: { status: AccountStatus }) {
+export function AccountBadge({ status, className }: { status: AccountStatus; className?: string }) {
   const m = ACCOUNT_META[status];
-  return <Badge variant={m.variant}>{m.label}</Badge>;
+  return (
+    <Badge variant={m.variant} className={className}>
+      {m.label}
+    </Badge>
+  );
 }
 
 const VERIFY_META: Record<

@@ -49,6 +49,7 @@ import { ApiError, getAccessToken } from '@/api/client';
 import { cn, getInitials } from '@/lib/utils';
 import { SubjectPicker } from '@/components/tutor/SubjectPicker';
 import { VerifiedContactField } from '@/components/account/VerifiedContactField';
+import { useAccountContact } from '@/hooks/useAccountContact';
 import { ContactChangeDialog } from '@/components/account/ContactChangeDialog';
 import { toast } from '@/components/ui/sonner';
 import type { City, SessionMode, TeachingLanguage } from '@/types';
@@ -82,8 +83,12 @@ function ProfileHeader({ url, onChange }: { url?: string; onChange?: (url: strin
       <AvatarUpload url={url} name={user?.name} size={80} onChange={onChange} />
       <div>
         <h3 className="font-display text-lg font-bold">{user?.name ?? 'Your Name'}</h3>
-        <p className="text-sm capitalize text-muted-foreground">{user?.role ?? 'student'} account</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Click the camera to change your profile photo.</p>
+        <p className="text-sm capitalize text-muted-foreground">
+          {user?.role ?? 'student'} account
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Click the camera to change your profile photo.
+        </p>
       </div>
     </div>
   );
@@ -113,8 +118,18 @@ function BasicProfileForm() {
           <Label>Full name</Label>
           <Input defaultValue={user?.name} />
         </div>
-        <VerifiedContactField channel="PHONE" value={user?.phone} onEdit={setChangingChannel} />
-        <VerifiedContactField channel="EMAIL" value={user?.email} onEdit={setChangingChannel} />
+        <VerifiedContactField
+          channel="PHONE"
+          verified={user?.phoneVerified}
+          value={user?.phone}
+          onEdit={setChangingChannel}
+        />
+        <VerifiedContactField
+          channel="EMAIL"
+          verified={user?.emailVerified}
+          value={user?.email}
+          onEdit={setChangingChannel}
+        />
         <div className="space-y-1.5">
           <Label>City</Label>
           <Input defaultValue={user?.city ?? 'Karachi'} />
@@ -167,6 +182,7 @@ interface TutorProfileState {
 }
 
 function TutorProfileForm() {
+  const contact = useAccountContact();
   const user = useAuthStore((s) => s.user);
   const setSession = useAuthStore((s) => s.setSession);
   const catalog = useProfileCatalogs();
@@ -346,8 +362,18 @@ function TutorProfileForm() {
           {/* Both were editable boxes that updateTutorProfile never submitted, so anything typed
               was silently discarded. They are verified facts, changed through the code flow rather
               than by typing — the pencil opens the only thing that can actually change them. */}
-          <VerifiedContactField channel="PHONE" value={form.phone} onEdit={setChangingChannel} />
-          <VerifiedContactField channel="EMAIL" value={form.email} onEdit={setChangingChannel} />
+          <VerifiedContactField
+            channel="PHONE"
+            verified={contact.data?.phoneVerified}
+            value={form.phone}
+            onEdit={setChangingChannel}
+          />
+          <VerifiedContactField
+            channel="EMAIL"
+            verified={contact.data?.emailVerified}
+            value={form.email}
+            onEdit={setChangingChannel}
+          />
           <Field label="Years of experience">
             <Input
               type="number"
@@ -360,7 +386,10 @@ function TutorProfileForm() {
           </Field>
           <Field label="City" icon={MapPin} error={errors.city} required>
             <Select value={form.city} onValueChange={(v) => set('city', v as City)}>
-              <SelectTrigger aria-invalid={!!errors.city} className={cn(errors.city && 'border-red-500 ring-1 ring-red-500')}>
+              <SelectTrigger
+                aria-invalid={!!errors.city}
+                className={cn(errors.city && 'border-red-500 ring-1 ring-red-500')}
+              >
                 <SelectValue placeholder="Select city" />
               </SelectTrigger>
               <SelectContent>
@@ -380,7 +409,10 @@ function TutorProfileForm() {
             />
           </Field>
           <Field label="Gender">
-            <Select value={form.gender} onValueChange={(v) => set('gender', v as 'male' | 'female')}>
+            <Select
+              value={form.gender}
+              onValueChange={(v) => set('gender', v as 'male' | 'female')}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
@@ -448,7 +480,11 @@ function TutorProfileForm() {
         {/* Narrow by category, then pick — a flat chip list is unreadable at this many subjects. */}
         <SubjectPicker selected={form.subjects} onChange={(v) => set('subjects', v)} />
         <Separator className="my-5" />
-        <SectionTitle icon={BookOpen} title="Courses" hint="Add a course code + title; add as many as you like" />
+        <SectionTitle
+          icon={BookOpen}
+          title="Courses"
+          hint="Add a course code + title; add as many as you like"
+        />
         <CoursesEditor courses={form.courses} onChange={(c) => set('courses', c)} />
         <Separator className="my-5" />
         <SectionTitle icon={GraduationCap} title="Grade levels" />
@@ -459,7 +495,11 @@ function TutorProfileForm() {
         />
         <Separator className="my-5" />
         <SectionTitle icon={Video} title="How do you teach?" />
-        <ModeToggles selected={form.modes} onToggle={(v) => toggleIn('modes', v)} options={catalog.modes} />
+        <ModeToggles
+          selected={form.modes}
+          onToggle={(v) => toggleIn('modes', v)}
+          options={catalog.modes}
+        />
         <Separator className="my-5" />
         <Field
           label="Skills & strengths"
@@ -513,7 +553,10 @@ function TutorProfileForm() {
               aria-invalid={!!errors.hourlyRate}
             />
           </Field>
-          <Field label="Expected Monthly package (PKR)" hint="Optional — your starting monthly rate for recurring students.">
+          <Field
+            label="Expected Monthly package (PKR)"
+            hint="Optional — your starting monthly rate for recurring students."
+          >
             <Input
               type="number"
               min={0}
@@ -537,10 +580,27 @@ function TutorProfileForm() {
       <ContactChangeDialog
         channel={changingChannel}
         currentValue={changingChannel === 'PHONE' ? form.phone : form.email}
-        onClose={() => setChangingChannel(null)}
-        onChanged={(details) =>
-          setForm((f) => ({ ...f, phone: details.phone, email: details.email ?? f.email }))
+        currentVerified={
+          changingChannel === 'PHONE'
+            ? (contact.data?.phoneVerified ?? false)
+            : (contact.data?.emailVerified ?? false)
         }
+        onClose={() => setChangingChannel(null)}
+        onChanged={(details) => {
+          setForm((f) => ({ ...f, phone: details.phone, email: details.email ?? f.email }));
+          if (user)
+            setSession(
+              {
+                ...user,
+                phone: details.phone,
+                email: details.email,
+                phoneVerified: changingChannel === 'PHONE' ? true : user.phoneVerified,
+                emailVerified: changingChannel === 'EMAIL' ? true : user.emailVerified,
+              },
+              getAccessToken() ?? '',
+            );
+          void contact.refetch();
+        }}
       />
     </div>
   );
@@ -634,10 +694,17 @@ function ParentChildren() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Child’s name">
-          <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ali Shah" />
+          <Input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Ali Shah"
+          />
         </Field>
         <Field label="Grade / class">
-          <Select value={form.gradeLevel} onValueChange={(v) => setForm((f) => ({ ...f, gradeLevel: v }))}>
+          <Select
+            value={form.gradeLevel}
+            onValueChange={(v) => setForm((f) => ({ ...f, gradeLevel: v }))}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select grade" />
             </SelectTrigger>
@@ -651,14 +718,23 @@ function ParentChildren() {
           </Select>
         </Field>
         <Field label="School (optional)">
-          <Input value={form.school} onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))} placeholder="Beaconhouse" />
+          <Input
+            value={form.school}
+            onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))}
+            placeholder="Beaconhouse"
+          />
         </Field>
         <Field label="Notes (optional)" hint="e.g. subjects they need help with">
-          <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Needs Maths & Physics" />
+          <Input
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            placeholder="Needs Maths & Physics"
+          />
         </Field>
       </div>
       <Button variant="outline" className="mt-4" onClick={add} disabled={adding}>
-        {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <User className="h-4 w-4" />} Add child
+        {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <User className="h-4 w-4" />} Add
+        child
       </Button>
     </div>
   );

@@ -31,6 +31,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Link } from 'react-router-dom';
+import { useAccountContact } from '@/hooks/useAccountContact';
 import { VerificationSlot } from '@/components/tutor/VerificationSlot';
 import { QrCode } from '@/components/common/QrCode';
 import { BACKGROUND_CHECK_PAYMENT } from '@/constants/payment';
@@ -58,16 +60,44 @@ const STATUS_META: Record<
   StepStatus,
   { label: string; badge: 'secondary' | 'info' | 'success' | 'destructive' | 'gold'; num: string }
 > = {
-  NOT_STARTED: { label: 'Not started', badge: 'secondary', num: 'bg-secondary text-muted-foreground' },
+  NOT_STARTED: {
+    label: 'Not started',
+    badge: 'secondary',
+    num: 'bg-secondary text-muted-foreground',
+  },
   // Amber rather than grey: this step has something in it, and the colour is what tells a tutor
   // scanning the page which steps they have already touched.
-  IN_PROGRESS: { label: 'In progress', badge: 'gold', num: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400' },
+  IN_PROGRESS: {
+    label: 'In progress',
+    badge: 'gold',
+    num: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400',
+  },
   // Everything attached, nothing sent yet — the step wants nothing further from the tutor.
-  READY: { label: 'Uploaded', badge: 'info', num: 'bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400' },
-  UNDER_REVIEW: { label: 'Under review', badge: 'info', num: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400' },
-  PASSED: { label: 'Verified', badge: 'success', num: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' },
-  REJECTED: { label: 'Rejected', badge: 'destructive', num: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400' },
-  FLAGGED: { label: 'Not cleared', badge: 'destructive', num: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400' },
+  READY: {
+    label: 'Uploaded',
+    badge: 'info',
+    num: 'bg-brand-100 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400',
+  },
+  UNDER_REVIEW: {
+    label: 'Under review',
+    badge: 'info',
+    num: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+  },
+  PASSED: {
+    label: 'Verified',
+    badge: 'success',
+    num: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    badge: 'destructive',
+    num: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+  },
+  FLAGGED: {
+    label: 'Not cleared',
+    badge: 'destructive',
+    num: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+  },
 };
 
 /**
@@ -85,7 +115,10 @@ const STEP_COPY_OVERRIDE: Partial<Record<string, { title: string; description: s
   },
 };
 
-const APP_BANNER: Record<ApplicationStatus, { tone: string; icon: typeof Clock; title: string; body: string } | null> = {
+const APP_BANNER: Record<
+  ApplicationStatus,
+  { tone: string; icon: typeof Clock; title: string; body: string } | null
+> = {
   DRAFT: null,
   SUBMITTED: {
     tone: 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300',
@@ -131,7 +164,10 @@ export default function TutorVerification() {
       <div>
         {/* No count until the steps arrive: the number comes from the server's catalog, and a
             hard-coded one here would be a second source of truth to keep in step with it. */}
-        <PageHeader title="Get Verified" description="Complete every step to earn your green Verified Badge." />
+        <PageHeader
+          title="Get Verified"
+          description="Complete every step to earn your green Verified Badge."
+        />
         <div className="flex items-center justify-center rounded-2xl border bg-card p-12 shadow-soft">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -185,7 +221,12 @@ export default function TutorVerification() {
 
       {/* Application status banner */}
       {banner && (
-        <div className={cn('mb-6 flex items-start gap-3 rounded-2xl border p-4 shadow-soft', banner.tone)}>
+        <div
+          className={cn(
+            'mb-6 flex items-start gap-3 rounded-2xl border p-4 shadow-soft',
+            banner.tone,
+          )}
+        >
           <banner.icon className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <p className="font-semibold">{banner.title}</p>
@@ -275,10 +316,15 @@ function StepCard({
             <h3 className="font-semibold">{copy?.title ?? step.title}</h3>
             <Badge variant={meta.badge}>{meta.label}</Badge>
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">{copy?.description ?? step.description}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {copy?.description ?? step.description}
+          </p>
         </div>
         <ChevronDown
-          className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')}
+          className={cn(
+            'h-5 w-5 shrink-0 text-muted-foreground transition-transform',
+            expanded && 'rotate-180',
+          )}
         />
       </button>
 
@@ -298,7 +344,10 @@ function StepCard({
               {step.notes && <p className="mt-1">{step.notes}</p>}
               <p className="mt-1">
                 If you believe this is a mistake, contact{' '}
-                <a href="mailto:support@toptutor.pk" className="font-semibold underline underline-offset-4">
+                <a
+                  href="mailto:support@toptutor.pk"
+                  className="font-semibold underline underline-offset-4"
+                >
                   support@toptutor.pk
                 </a>
                 .
@@ -372,15 +421,18 @@ function FinalReviewSection({
 }) {
   const [open, setOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const contact = useAccountContact();
+  const phoneReady = !!contact.data?.phone && contact.data.phoneVerified;
 
   // The CNIC details are compulsory, so they gate the button alongside the documents. Checked here
   // as well as on the server so the tutor is stopped before a round trip, not after one.
   const identityComplete =
     CNIC_RE.test(identity.cnicNumber.trim()) && identity.cnicIssueDate !== '';
-  const canSubmit = view.canSubmit && identityComplete;
+  const canSubmit = view.canSubmit && identityComplete && phoneReady;
 
   const submit = useMutation({
-    mutationFn: () => verificationService.submit(identity.cnicNumber.trim(), identity.cnicIssueDate),
+    mutationFn: () =>
+      verificationService.submit(identity.cnicNumber.trim(), identity.cnicIssueDate),
     onSuccess: () => {
       setOpen(false);
       setConfirmed(false);
@@ -430,6 +482,15 @@ function FinalReviewSection({
       <Button variant="gradient" disabled={!canSubmit} onClick={() => setOpen(true)}>
         <Send className="h-4 w-4" /> Submit for Admin Approval
       </Button>
+      {!phoneReady && (
+        <p className="text-xs text-muted-foreground">
+          Add and verify your phone number in your{' '}
+          <Link to="/dashboard/tutor/profile" className="font-medium text-primary hover:underline">
+            profile
+          </Link>{' '}
+          before submitting for approval.
+        </p>
+      )}
       {/* Names the missing half specifically. "Complete all required fields" would leave a tutor
           who has uploaded everything hunting for what is wrong. */}
       {view.canSubmit && !identityComplete && (
@@ -437,7 +498,7 @@ function FinalReviewSection({
           Add your CNIC number and date of issue in step 1 to enable submission.
         </p>
       )}
-      {!view.canSubmit && view.applicationStatus !== 'CHANGES_REQUESTED' && (
+      {phoneReady && !view.canSubmit && view.applicationStatus !== 'CHANGES_REQUESTED' && (
         <p className="text-xs text-muted-foreground">
           Upload all required documents (marked <span className="text-red-500">*</span>) to enable
           submission.
@@ -485,10 +546,14 @@ function FinalReviewSection({
             </Button>
             <Button
               variant="gradient"
-              disabled={!confirmed || submit.isPending}
+              disabled={!confirmed || !canSubmit || submit.isPending}
               onClick={() => submit.mutate()}
             >
-              {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {submit.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
               Confirm &amp; Submit
             </Button>
           </DialogFooter>
@@ -546,7 +611,7 @@ function IdentityFields({
           // value is ever unparseable — an approved field must always show what was approved.
           value={
             value.cnicIssueDate
-              ? formatIssueDate(value.cnicIssueDate) ?? value.cnicIssueDate
+              ? (formatIssueDate(value.cnicIssueDate) ?? value.cnicIssueDate)
               : '—'
           }
         />
@@ -555,7 +620,10 @@ function IdentityFields({
           <span>
             These details were checked against your CNIC and approved, so they can no longer be
             changed. Contact{' '}
-            <a href="mailto:support@toptutor.pk" className="font-medium underline underline-offset-4">
+            <a
+              href="mailto:support@toptutor.pk"
+              className="font-medium underline underline-offset-4"
+            >
               support@toptutor.pk
             </a>{' '}
             if something here is wrong.
@@ -749,15 +817,7 @@ function BackgroundFeePanel({ fee }: { fee: number }) {
 }
 
 /** One account detail: a quiet label over the value, with a copy button where people mistype. */
-function Detail({
-  label,
-  value,
-  copyable,
-}: {
-  label: string;
-  value: string;
-  copyable?: boolean;
-}) {
+function Detail({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

@@ -10,6 +10,8 @@ import { earningsService, type EarningLine } from '@/services/earningsService';
 import { PayoutAccountCard } from '@/components/tutor/PayoutAccountCard';
 import { WithdrawCard, WithdrawalHistory } from '@/components/tutor/WithdrawCard';
 import { formatPKR, pluralize } from '@/lib/utils';
+import { commissionPercent } from '@/lib/commission';
+import { TutorCommissionPlans } from '@/components/tutor/TutorCommissionPlans';
 
 export default function TutorEarnings() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -93,6 +95,7 @@ export default function TutorEarnings() {
 
       <WithdrawalHistory />
 
+      <TutorCommissionPlans />
       <div className="mt-6 overflow-hidden rounded-2xl border bg-card shadow-soft">
         <h2 className="border-b p-5 font-display text-lg font-bold">Session earnings</h2>
         {data.lines.length === 0 ? (
@@ -125,13 +128,13 @@ function CommissionNote({
   loyalRate: number;
   sessionsToGo: number;
 }) {
-  const pct = (value: number) => `${Math.round(value * 100)}%`;
+  const pct = commissionPercent;
   return (
     <div className="mt-6 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
       <span>
         Future sessions are charged at <strong>{pct(rate)}</strong> commission.
-        {sessionsToGo > 0 && (
+        {sessionsToGo > 0 && loyalRate < rate && (
           <>
             {' '}
             Complete {sessionsToGo} more {pluralize(sessionsToGo, 'session')} to drop to{' '}
@@ -171,7 +174,7 @@ function EarningsTable({ lines }: { lines: EarningLine[] }) {
               <td className="px-5 py-3 text-right">
                 {/* Per row, because it is the rate THIS session was paid at — which is not
                     necessarily the tutor's current rate. */}
-                <Badge variant="secondary">{Math.round(line.commissionRate * 100)}%</Badge>
+                <Badge variant="secondary">{commissionPercent(line.commissionRate)}</Badge>
                 <span className="ml-2 text-xs text-muted-foreground tabular-nums">
                   −{formatPKR(line.platformFee)}
                 </span>

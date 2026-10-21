@@ -41,7 +41,9 @@ export default function ForgotPasswordPage() {
         </div>
         <h1 className="mt-6 font-display text-2xl font-extrabold">Check your inbox</h1>
         <p className="mt-2 text-muted-foreground">
-          We’ve sent a password reset link to <span className="font-medium text-foreground">{email}</span>.
+          If an account exists for <span className="font-medium text-foreground">{email}</span>,
+          you’ll receive instructions to regain access. Google accounts receive guidance to continue
+          with Google.
         </p>
         <Button variant="outline" className="mt-8" asChild>
           <Link to="/login">
@@ -54,7 +56,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div>
-      <AuthHeader title="Forgot password?" subtitle="Enter your email and we’ll send you a reset link." />
+      <AuthHeader
+        title="Forgot password?"
+        subtitle="Enter your email and we’ll send you a reset link."
+      />
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>

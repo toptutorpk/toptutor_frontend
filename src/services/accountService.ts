@@ -5,6 +5,8 @@ export interface AccountMe {
   id: number;
   email?: string;
   phone: string;
+  phoneVerified: boolean;
+  emailVerified: boolean;
   role: 'TUTOR' | 'STUDENT' | 'PARENT' | 'ADMIN';
   status: string;
   name?: string;

@@ -23,7 +23,7 @@ import { ApiError } from '@/api/client';
 import { toast } from '@/components/ui/sonner';
 import { cn } from '@/lib/utils';
 import { acceptHint, acceptedTypes, rejectReason } from '@/lib/uploadRules';
-
+import { ImageWithSkeleton } from '@/components/common/ImageWithSkeleton';
 
 /**
  * Marks a slot the tutor may skip.
@@ -44,13 +44,30 @@ function OptionalTag() {
 function StatusChip({ status }: { status?: DocStatus }) {
   if (!status || status === 'PENDING') return null;
   const meta = {
-    APPROVED: { label: 'Approved', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400', icon: CheckCircle2 },
-    REJECTED: { label: 'Rejected', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400', icon: AlertTriangle },
-    UNDER_REVIEW: { label: 'Under review', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400', icon: Clock },
+    APPROVED: {
+      label: 'Approved',
+      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+      icon: CheckCircle2,
+    },
+    REJECTED: {
+      label: 'Rejected',
+      cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+      icon: AlertTriangle,
+    },
+    UNDER_REVIEW: {
+      label: 'Under review',
+      cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+      icon: Clock,
+    },
   }[status];
   const Icon = meta.icon;
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold', meta.cls)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold',
+        meta.cls,
+      )}
+    >
       <Icon className="h-3 w-3" /> {meta.label}
     </span>
   );
@@ -65,6 +82,7 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
   const [open, setOpen] = useState(false);
 
   const src = localPreview || slot.url;
+  const isCnic = slot.key === 'cnic_front' || slot.key === 'cnic_back';
   const uploaded = Boolean(slot.url);
   const locked = slot.locked; // approved → cannot be changed
   const rejected = slot.status === 'REJECTED';
@@ -155,14 +173,25 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
         <div
           className={cn(
             'group relative aspect-[1.586] overflow-hidden rounded-2xl border-2 transition-colors',
-            src ? 'border-solid border-border' : 'border-dashed border-input hover:border-brand-400',
+            src
+              ? 'border-solid border-border'
+              : 'border-dashed border-input hover:border-brand-400',
             slot.status === 'APPROVED' && 'border-emerald-300 dark:border-emerald-500/30',
             rejected && 'border-red-300 dark:border-red-500/30',
             'bg-secondary/40',
           )}
         >
           {src ? (
-            <img src={src} alt={slot.label} className="h-full w-full object-cover" />
+            isCnic ? (
+              <ImageWithSkeleton
+                skeletonVariant="document"
+                src={src}
+                alt={slot.label}
+                containerClassName="h-full w-full"
+              />
+            ) : (
+              <img src={src} alt={slot.label} className="h-full w-full object-cover" />
+            )
           ) : (
             <button
               type="button"
@@ -223,7 +252,18 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
               <DialogTitle>{slot.label}</DialogTitle>
             </DialogHeader>
             <div className="flex justify-center overflow-hidden rounded-xl border bg-slate-900">
-              {src && <img src={src} alt={slot.label} className="max-h-[70vh] w-full object-contain" />}
+              {src &&
+                (isCnic ? (
+                  <ImageWithSkeleton
+                    skeletonVariant="document"
+                    src={src}
+                    alt={slot.label}
+                    containerClassName="aspect-[1.586] max-h-[70vh] w-full"
+                    className="object-contain"
+                  />
+                ) : (
+                  <img src={src} alt={slot.label} className="max-h-[70vh] w-full object-contain" />
+                ))}
             </div>
             <div className="flex justify-end gap-2">
               {!locked && (
@@ -247,7 +287,6 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
       <div className="w-full max-w-md space-y-2">
         <div className="overflow-hidden rounded-xl border bg-slate-900">
           {src ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <video src={src} controls className="max-h-72 w-full" />
           ) : (
             <button
@@ -268,11 +307,17 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
             </span>
           ) : (
             <Button type="button" variant="outline" size="sm" onClick={pick} disabled={uploading}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UploadCloud className="h-4 w-4" />
+              )}
               {uploaded ? 'Change video' : 'Upload video'}
             </Button>
           )}
-          {uploading && <span className="text-xs text-muted-foreground">Uploading {progress}%</span>}
+          {uploading && (
+            <span className="text-xs text-muted-foreground">Uploading {progress}%</span>
+          )}
           <StatusChip status={slot.status} />
         </div>
         {rejectionNote}
@@ -330,7 +375,11 @@ export function VerificationSlot({ slot, onChanged }: { slot: Slot; onChanged: (
           </span>
         ) : (
           <Button type="button" variant="outline" size="sm" onClick={pick} disabled={uploading}>
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <UploadCloud className="h-4 w-4" />
+            )}
             {changeLabel}
           </Button>
         )}

@@ -22,6 +22,7 @@ import { toast } from '@/components/ui/sonner';
 interface Props {
   channel: ContactChannel | null;
   currentValue?: string;
+  currentVerified?: boolean;
   onClose: () => void;
   /** Called with the account's new details once the change has actually been applied. */
   onChanged: (details: { phone: string; email?: string }) => void;
@@ -60,7 +61,13 @@ const COPY = {
  * <p>Shared by every account that has a verified contact detail (tutor, institute, student,
  * parent), so the journey is the same wherever it is started from.
  */
-export function ContactChangeDialog({ channel, currentValue, onClose, onChanged }: Props) {
+export function ContactChangeDialog({
+  channel,
+  currentValue,
+  currentVerified = true,
+  onClose,
+  onChanged,
+}: Props) {
   const [value, setValue] = useState('');
   const [code, setCode] = useState('');
   const [changeId, setChangeId] = useState<number | null>(null);
@@ -68,7 +75,19 @@ export function ContactChangeDialog({ channel, currentValue, onClose, onChanged 
   const [busy, setBusy] = useState(false);
   const { remaining, active, start } = useCooldown();
 
-  const copy = channel ? COPY[channel] : null;
+  const copy = channel
+    ? {
+        ...COPY[channel],
+        ...(channel === 'PHONE' && (!currentValue || !currentVerified)
+          ? {
+              title: currentValue ? 'Verify your phone number' : 'Add your phone number',
+              lead: "We'll send a 6-digit code to confirm this phone number belongs to you.",
+              inputLabel: 'Phone number',
+              hint: 'Your number is saved only after OTP verification.',
+            }
+          : {}),
+      }
+    : null;
   const isPhone = channel === 'PHONE';
 
   const wellFormed = isPhone ? isValidPhone(value) : isValidEmail(value);
@@ -87,7 +106,9 @@ export function ContactChangeDialog({ channel, currentValue, onClose, onChanged 
   const sameAsCurrent =
     wellFormed &&
     !!currentValue &&
-    canonical().toLowerCase() === (isPhone ? currentValue : normalizeEmail(currentValue)).toLowerCase();
+    (channel !== 'PHONE' || currentVerified) &&
+    canonical().toLowerCase() ===
+      (isPhone ? currentValue : normalizeEmail(currentValue)).toLowerCase();
 
   const valid = wellFormed && !sameAsCurrent;
 
@@ -212,16 +233,18 @@ export function ContactChangeDialog({ channel, currentValue, onClose, onChanged 
               {/* The rule and the complaint occupy the same line: the rule is what you read before
                   typing, the complaint is what replaces it when you have broken it. */}
               {(problem ?? (currentValue ? copy?.hint : undefined)) && (
-                <p
-                  className={`mt-1.5 text-xs `}
-                >
-                  {problem ?? copy?.hint}
-                </p>
+                <p className={`mt-1.5 text-xs `}>{problem ?? copy?.hint}</p>
               )}
             </div>
 
             <DialogFooter className="flex-row gap-2 sm:space-x-0">
-              <Button type="button" variant="outline" className="flex-1" onClick={close} disabled={busy}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={close}
+                disabled={busy}
+              >
                 Cancel
               </Button>
               <Button
@@ -263,7 +286,13 @@ export function ContactChangeDialog({ channel, currentValue, onClose, onChanged 
             </div>
 
             <DialogFooter className="flex-row gap-2 sm:space-x-0">
-              <Button type="button" variant="outline" className="flex-1" onClick={close} disabled={busy}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={close}
+                disabled={busy}
+              >
                 Cancel
               </Button>
               <Button

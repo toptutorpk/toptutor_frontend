@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Eye,
-  EyeOff,
   Landmark,
   Lock,
   ShieldCheck,
@@ -25,6 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { OtpInput } from '@/components/auth/OtpInput';
+import { useCooldown } from '@/hooks/useCooldown';
+import type { PayoutConfirmation, SavePayoutAccountRequest } from '@/services/payoutService';
 import { ProviderPicker } from '@/components/common/ProviderPicker';
 import { BankLogo } from '@/components/common/BankLogo';
 import { toast } from '@/components/ui/sonner';
@@ -191,22 +192,31 @@ function PayoutAccountDialog({
   const [provider, setProvider] = useState(account.provider ?? '');
   const [accountTitle, setAccountTitle] = useState(account.accountTitle ?? '');
   const [accountNumber, setAccountNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const passwordRef = useRef<HTMLInputElement>(null);
-
+  const [challenge, setChallenge] = useState<PayoutConfirmation | null>(null);
+  const [draft, setDraft] = useState<SavePayoutAccountRequest | null>(null);
+  const [code, setCode] = useState('');
+  const [resetCode, setResetCode] = useState(0);
+  const cooldown = useCooldown();
   const isWallet = method === 'MOBILE_WALLET';
-
-  // Some password managers fill the field regardless of the hints on it. Clear it once, shortly
-  // after the dialog opens — but only while the cursor is elsewhere, so a tutor who has already
-  // started typing never has their input wiped. This dialog is remounted on every open, so the
-  // check runs against a fresh field each time.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (document.activeElement !== passwordRef.current) setPassword('');
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const send = useMutation({
+    mutationFn: (details: SavePayoutAccountRequest) => payoutService.startConfirmation(details),
+    onSuccess: (result, details) => {
+      setDraft(details);
+      setChallenge(result);
+      setCode('');
+      setResetCode((n) => n + 1);
+      cooldown.start();
+      toast.success('Verification code sent', {
+        description: 'Check your account email. The code expires in 10 minutes.',
+      });
+      if (result.devCode)
+        toast.info('Dev verification code', { description: result.devCode, duration: 15000 });
+    },
+    onError: (e) =>
+      toast.error('Could not send the code', {
+        description: e instanceof Error ? e.message : 'Please try again.',
+      }),
+  });
 
   // Banks and wallets come from the database, so adding one is a row rather than a release.
   const { data: providers = [], isLoading: providersLoading } = useQuery({
@@ -216,13 +226,12 @@ function PayoutAccountDialog({
   });
 
   const save = useMutation({
-    mutationFn: () =>
-      payoutService.save({ method, provider, accountTitle, accountNumber, password }),
+    mutationFn: () => payoutService.confirm(challenge!.challengeId, code, draft!),
     onSuccess: (saved) => {
       qc.setQueryData(['payout-account'], saved);
       onOpenChange(false);
       setAccountNumber('');
-      setPassword('');
+      setCode('');
       toast.success('Payout account saved', {
         description: `Payouts will go to ${saved.provider} ${saved.maskedNumber}.`,
       });
@@ -235,10 +244,7 @@ function PayoutAccountDialog({
   });
 
   const canSave =
-    provider.trim() !== '' &&
-    accountTitle.trim() !== '' &&
-    accountNumber.trim().length >= 6 &&
-    password !== '';
+    provider.trim() !== '' && accountTitle.trim() !== '' && accountNumber.trim().length >= 6;
 
   const chooseMethod = (next: PayoutMethod) => {
     setMethod(next);
@@ -248,7 +254,10 @@ function PayoutAccountDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (save.isPending ? null : onOpenChange(next))}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => (save.isPending || send.isPending ? null : onOpenChange(next))}
+    >
       {/* The form is trimmed to fit outright — it does not scroll at any normal window size. A
           payments form that scrolls hides its own submit button, and a half-seen field is a
           mistyped one. The cap is a floor, not a scroll pane: it engages only on a window too
@@ -268,114 +277,131 @@ function PayoutAccountDialog({
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (canSave && !save.isPending) save.mutate();
+            if (save.isPending || send.isPending) return;
+            if (challenge && draft && code.length === 6) save.mutate();
+            else if (!challenge && canSave)
+              send.mutate({ method, provider, accountTitle, accountNumber });
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
-            <MethodTile
-              active={isWallet}
-              icon={Smartphone}
-              label="Mobile wallet"
-              hint="JazzCash, Easypaisa…"
-              onClick={() => chooseMethod('MOBILE_WALLET')}
-            />
-            <MethodTile
-              active={!isWallet}
-              icon={Landmark}
-              label="Bank account"
-              hint="IBAN transfer"
-              onClick={() => chooseMethod('BANK')}
-            />
-          </div>
+          {!challenge && (
+            <fieldset disabled={send.isPending} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <MethodTile
+                  active={isWallet}
+                  icon={Smartphone}
+                  label="Mobile wallet"
+                  hint="JazzCash, Easypaisa…"
+                  onClick={() => chooseMethod('MOBILE_WALLET')}
+                />
+                <MethodTile
+                  active={!isWallet}
+                  icon={Landmark}
+                  label="Bank account"
+                  hint="IBAN transfer"
+                  onClick={() => chooseMethod('BANK')}
+                />
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={isWallet ? 'Wallet' : 'Bank'} htmlFor="payout-provider">
-              <ProviderPicker
-                id="payout-provider"
-                items={providers}
-                value={provider}
-                onChange={setProvider}
-                placeholder={
-                  providersLoading ? 'Loading…' : isWallet ? 'Choose wallet' : 'Choose bank'
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={isWallet ? 'Wallet' : 'Bank'} htmlFor="payout-provider">
+                  <ProviderPicker
+                    id="payout-provider"
+                    items={providers}
+                    value={provider}
+                    onChange={setProvider}
+                    placeholder={
+                      providersLoading ? 'Loading…' : isWallet ? 'Choose wallet' : 'Choose bank'
+                    }
+                    searchPlaceholder={isWallet ? 'Search wallet…' : 'Search bank…'}
+                    disabled={providersLoading}
+                  />
+                </Field>
+
+                <Field label="Account title" htmlFor="payout-title">
+                  <Input
+                    id="payout-title"
+                    value={accountTitle}
+                    onChange={(e) => setAccountTitle(e.target.value)}
+                    placeholder="Name on the account"
+                    autoComplete="off"
+                  />
+                </Field>
+              </div>
+
+              <Field
+                label={isWallet ? 'Mobile number' : 'IBAN'}
+                htmlFor="payout-number"
+                hint={
+                  account.configured
+                    ? 'We never show a saved number back — please enter it again in full.'
+                    : undefined
                 }
-                searchPlaceholder={isWallet ? 'Search wallet…' : 'Search bank…'}
-                disabled={providersLoading}
-              />
-            </Field>
-
-            <Field label="Account title" htmlFor="payout-title">
-              <Input
-                id="payout-title"
-                value={accountTitle}
-                onChange={(e) => setAccountTitle(e.target.value)}
-                placeholder="Name on the account"
-                autoComplete="off"
-              />
-            </Field>
-          </div>
-
-          <Field
-            label={isWallet ? 'Mobile number' : 'IBAN'}
-            htmlFor="payout-number"
-            hint={
-              account.configured
-                ? 'We never show a saved number back — please enter it again in full.'
-                : undefined
-            }
-          >
-            <Input
-              id="payout-number"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder={isWallet ? '03001234567' : 'PK36SCBL0000001123456702'}
-              inputMode={isWallet ? 'numeric' : 'text'}
-              autoComplete="off"
-              spellCheck={false}
-              className={isWallet ? 'tabular-nums' : 'font-mono uppercase'}
-            />
-          </Field>
-
-          <Field label="Account password" htmlFor="payout-password">
-            <div className="relative">
-              {/* Must NOT be autofilled. `current-password` would tell the browser this is the
-                  saved sign-in field and have it filled on open — which quietly undoes the whole
-                  point: the tutor is meant to prove they know the password right now, not have a
-                  browser prove it for whoever is sitting at the machine. `new-password` is the
-                  documented way to say "not the stored credential", and the data-* attributes opt
-                  out of the common password managers, which ignore the standard hint. */}
-              <Input
-                ref={passwordRef}
-                id="payout-password"
-                name="payout-account-confirmation"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                data-lpignore="true"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                className="pr-11"
-                placeholder="Your TopTutor password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+                <Input
+                  id="payout-number"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder={isWallet ? '03001234567' : 'PK36SCBL0000001123456702'}
+                  inputMode={isWallet ? 'numeric' : 'text'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={isWallet ? 'tabular-nums' : 'font-mono uppercase'}
+                />
+              </Field>
+            </fieldset>
+          )}
+          {challenge && draft && (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-secondary/30 p-3 text-sm">
+                <p className="font-semibold">
+                  {draft.provider} · {draft.accountTitle}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Account ending in {draft.accountNumber.replace(/[^a-zA-Z0-9]/g, '').slice(-4)}
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Enter the 6-digit code sent to{' '}
+                <span className="font-medium text-foreground">{challenge.maskedEmail}</span>. It
+                expires in 10 minutes.
+              </p>
+              <fieldset disabled={save.isPending || send.isPending}>
+                <OtpInput resetToken={resetCode} onChange={setCode} />
+              </fieldset>
+              <div className="flex flex-wrap justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={save.isPending || send.isPending}
+                  onClick={() => {
+                    setChallenge(null);
+                    setCode('');
+                  }}
+                >
+                  Edit details
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={cooldown.active || send.isPending || save.isPending}
+                  onClick={() => send.mutate(draft)}
+                >
+                  {send.isPending
+                    ? 'Sending…'
+                    : cooldown.active
+                      ? 'Resend in ' + cooldown.remaining + 's'
+                      : 'Resend code'}
+                </Button>
+              </div>
             </div>
-          </Field>
-
-          {/* The one line that has to survive: which password, and why they are being asked. */}
+          )}
           <p className="flex items-start gap-2 rounded-xl border bg-secondary/30 p-3 text-xs leading-relaxed text-muted-foreground">
             <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Your{' '}
-              <strong className="font-semibold text-foreground">TopTutor account password</strong>{' '}
-              is required to add or change these details.
+              Confirm using a code sent to your verified TopTutor email. Your payout details are
+              saved only after verification.
             </span>
           </p>
 
@@ -384,12 +410,24 @@ function PayoutAccountDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={save.isPending}
+              disabled={save.isPending || send.isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" variant="gradient" disabled={!canSave || save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save account'}
+            <Button
+              type="submit"
+              variant="gradient"
+              disabled={
+                save.isPending || send.isPending || (challenge ? code.length !== 6 : !canSave)
+              }
+            >
+              {save.isPending
+                ? 'Saving…'
+                : send.isPending
+                  ? 'Sending…'
+                  : challenge
+                    ? 'Verify & save'
+                    : 'Continue'}
             </Button>
           </DialogFooter>
         </form>

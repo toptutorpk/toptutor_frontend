@@ -191,7 +191,14 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 // Endpoints that must never trigger a refresh-retry loop.
-const NO_REFRESH_PATHS = ['/auth/login', '/auth/refresh', '/tutors/register', '/tutors/verify-otp'];
+const NO_REFRESH_PATHS = [
+  '/auth/sign-in-method',
+  '/auth/google',
+  '/auth/login',
+  '/auth/refresh',
+  '/tutors/register',
+  '/tutors/verify-otp',
+];
 
 let inflightRefresh: Promise<string | null> | null = null;
 
@@ -238,7 +245,8 @@ apiClient.interceptors.response.use(
     return res;
   },
   async (error: AxiosError<ApiEnvelope<unknown>>) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const original = error.config as
+      (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
     const status = error.response?.status;
     const url = original?.url ?? '';
     const isAuthPath = NO_REFRESH_PATHS.some((p) => url.includes(p));

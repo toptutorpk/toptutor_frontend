@@ -1,28 +1,30 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Building2, Check, X, Ban, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Search, Building2 } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/dashboard/DashboardKit';
 import { DataTable, Toolbar, type Column } from '@/components/admin/AdminKit';
+import { TablePagination } from '@/components/common/TablePagination';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { LoadingState, ErrorState } from '@/components/common/StateViews';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { pageIndexFromParam, pageSizeFromParam } from '@/lib/pagination';
 import {
-  adminInstituteService,
-  type InstituteProfile,
-  type InstituteStatus,
-} from '@/services/instituteService';
-import { ApiError } from '@/api/client';
-import { toast } from '@/components/ui/sonner';
-
+  adminInstituteDirectoryService,
+  type AdminInstituteRow,
+} from '@/services/adminInstituteDirectoryService';
+import type { InstituteStatus } from '@/services/instituteService';
+const PLAN_LABELS = { LISTED: 'Listed (free)', GROWTH: 'Growth', INSTITUTION: 'Institution' };
+const money = (value: number) =>
+  'PKR ' + value.toLocaleString('en-PK', { maximumFractionDigits: 2 });
 const STATUS_META: Record<
   InstituteStatus,
   { label: string; variant: 'secondary' | 'gold' | 'success' | 'destructive' }
@@ -33,31 +35,89 @@ const STATUS_META: Record<
   SUSPENDED: { label: 'Suspended', variant: 'destructive' },
 };
 
-const TABS: InstituteStatus[] = ['UNDER_REVIEW', 'APPLIED', 'VERIFIED', 'SUSPENDED'];
-
 export default function AdminInstitutes() {
-  const [status, setStatus] = useState<InstituteStatus>('UNDER_REVIEW');
-  const [query, setQuery] = useState('');
-  const [reviewing, setReviewing] = useState<InstituteProfile | null>(null);
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'institutes', status],
-    queryFn: () => adminInstituteService.queue(status),
+  const [params, setParams] = useSearchParams();
+  const query = (params.get('q') ?? '').slice(0, 200);
+  const [search, setSearch] = useState(query.trim());
+  const status = ['APPLIED', 'UNDER_REVIEW', 'VERIFIED', 'SUSPENDED'].includes(
+    params.get('status') ?? '',
+  )
+    ? params.get('status')!
+    : 'all';
+  const plan = ['LISTED', 'GROWTH', 'INSTITUTION', 'UNCONFIGURED'].includes(
+    params.get('plan') ?? '',
+  )
+    ? params.get('plan')!
+    : 'all';
+  const page = pageIndexFromParam(params.get('page'));
+  const size = pageSizeFromParam(params.get('size'));
+  const debouncing = query.trim() !== search;
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    if (params.has('page') && params.get('page') !== String(page + 1)) {
+      if (!page) next.delete('page');
+      else next.set('page', String(page + 1));
+    }
+    if (params.has('size') && params.get('size') !== String(size)) next.set('size', String(size));
+    if (params.has('status') && params.get('status') !== status) next.delete('status');
+    if (params.has('plan') && params.get('plan') !== plan) next.delete('plan');
+    if ((params.get('q') ?? '').length > 200) next.set('q', query);
+    if (next.toString() !== params.toString()) setParams(next, { replace: true });
+  }, [params, page, size, status, plan, query, setParams]);
+  const stats = useQuery({
+    queryKey: ['admin', 'institutes', 'stats'],
+    queryFn: adminInstituteDirectoryService.stats,
   });
-
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return data ?? [];
-    return (data ?? []).filter(
-      (i) =>
-        (i.displayName ?? '').toLowerCase().includes(q) ||
-        (i.legalName ?? '').toLowerCase().includes(q) ||
-        (i.cityName ?? '').toLowerCase().includes(q) ||
-        (i.registrationNo ?? '').toLowerCase().includes(q),
+  const { data, isPending, isFetching, isPlaceholderData, isError, refetch } = useQuery({
+    queryKey: ['admin', 'institutes', 'page', status, search, size, plan, page],
+    queryFn: ({ signal }) =>
+      adminInstituteDirectoryService.list(
+        {
+          page,
+          size,
+          status: status === 'all' ? undefined : status,
+          plan: plan === 'all' ? undefined : plan,
+          search: search || undefined,
+        },
+        signal,
+      ),
+    enabled: !debouncing,
+    placeholderData: (old, previous) => {
+      const key = previous?.queryKey;
+      return key?.[3] === status && key?.[4] === search && key?.[5] === size && key?.[6] === plan
+        ? keepPreviousData(old)
+        : undefined;
+    },
+  });
+  useEffect(() => {
+    if (!data || debouncing || isPlaceholderData || data.page === page) return;
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (!data.page) next.delete('page');
+        else next.set('page', String(data.page + 1));
+        return next;
+      },
+      { replace: true },
     );
-  }, [data, query]);
-
-  const columns: Column<InstituteProfile>[] = [
+  }, [data, debouncing, isPlaceholderData, page, setParams]);
+  const change = (key: string, value: string) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (key !== 'page') next.delete('page');
+        if (!value || value === 'all' || (key === 'page' && value === '1')) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: key !== 'page' },
+    );
+  const loading = isFetching || debouncing;
+  const columns: Column<AdminInstituteRow>[] = [
     {
       header: 'Institute',
       cell: (i) => (
@@ -79,233 +139,199 @@ export default function AdminInstitutes() {
     { header: 'City', cell: (i) => i.cityName ?? '—' },
     { header: 'Entity', cell: (i) => i.entityType?.replace(/_/g, ' ').toLowerCase() ?? '—' },
     { header: 'Registration', cell: (i) => i.registrationNo ?? '—' },
-    { header: 'Signatory', cell: (i) => i.contactPerson ?? '—' },
+    {
+      header: 'Plan',
+      cell: (i) => (
+        <div>
+          <Badge variant="secondary">
+            {i.planTier ? PLAN_LABELS[i.planTier] : 'Not configured'}
+          </Badge>
+          {i.subscriptionStatus === 'CANCELLED' && (
+            <div className="mt-1 text-xs text-muted-foreground">Cancelled</div>
+          )}
+        </div>
+      ),
+    },
+    { header: 'Subscription spend', align: 'right', cell: (i) => money(i.subscriptionSpend) },
     {
       header: 'Status',
-      cell: (i) => <Badge variant={STATUS_META[i.status].variant}>{STATUS_META[i.status].label}</Badge>,
+      cell: (i) => (
+        <Badge variant={STATUS_META[i.status].variant}>{STATUS_META[i.status].label}</Badge>
+      ),
     },
     {
       header: 'Action',
       align: 'right',
-      // Reviewing opens the full file — profile, documents and per-document decisions — rather
-      // than a dialog of typed fields. Deciding whether an institute is real means looking at its
-      // registration certificate, which a queue row cannot show. Suspending a verified institute
-      // needs no documents, so that stays in the dialog.
+      // Review and account actions live inside the full institute file.
       cell: (i) =>
         i.status === 'UNDER_REVIEW' ? (
           <Button size="sm" variant="outline" asChild>
-            <Link to={`/admin/institutes/${i.instituteId}`}>Review</Link>
+            <Link
+              to={`/admin/institutes/${i.instituteId}`}
+              state={{ from: `/admin/institutes?${params.toString()}` }}
+            >
+              Review
+            </Link>
           </Button>
-        ) : i.status === 'VERIFIED' ? (
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" asChild>
-              <Link to={`/admin/institutes/${i.instituteId}`}>View file</Link>
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setReviewing(i)}>
-              Manage
-            </Button>
-          </div>
         ) : (
-          <Button size="sm" variant="ghost" asChild>
-            <Link to={`/admin/institutes/${i.instituteId}`}>View file</Link>
+          <Button size="sm" variant="outline" asChild>
+            <Link
+              to={`/admin/institutes/${i.instituteId}`}
+              state={{ from: `/admin/institutes?${params.toString()}` }}
+            >
+              View file
+            </Link>
           </Button>
         ),
     },
   ];
 
-  if (isLoading) return <LoadingState label="Loading institutes…" />;
-  if (isError) return <ErrorState onRetry={() => refetch()} message="Could not load institutes." />;
-
-  const awaiting = status === 'UNDER_REVIEW' ? rows.length : undefined;
-
   return (
-    <div>
+    <div className="flex flex-col lg:h-[calc(100dvh-8rem)] lg:min-h-[38rem] [&>div]:shrink-0">
       <PageHeader
         title="Institutes"
-        description="Schools and academies registering to hire through the platform."
+        description="Schools and academies registered on the platform."
       />
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard
-          icon="Building2"
-          label={`${STATUS_META[status].label}`}
-          value={String(rows.length)}
-          accent="emerald"
-        />
-        <StatCard
-          icon="ShieldAlert"
-          label="Awaiting review"
-          value={awaiting !== undefined ? String(awaiting) : '—'}
-          accent="amber"
-        />
-        <StatCard icon="ShieldCheck" label="Queue" value={STATUS_META[status].label} accent="brand" />
+      <div className="mb-5 grid gap-4 sm:grid-cols-3">
+        {stats.isPending ? (
+          [0, 1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
+        ) : (
+          <>
+            <StatCard
+              icon="Building2"
+              label="Total Institutes"
+              value={stats.data?.totalInstitutes.toLocaleString() ?? 'Unavailable'}
+              accent="violet"
+            />
+            <StatCard
+              icon="ShieldAlert"
+              label="Awaiting Review"
+              value={stats.data?.awaitingReview.toLocaleString() ?? 'Unavailable'}
+              accent="amber"
+            />
+            <StatCard
+              icon="Wallet"
+              label="Subscription Spend"
+              value={stats.data ? money(stats.data.subscriptionSpend) : 'Unavailable'}
+              accent="emerald"
+            />
+          </>
+        )}
       </div>
-
+      {stats.isError && (
+        <p className="mb-3 text-sm text-muted-foreground">
+          Could not load account totals.{' '}
+          <button
+            type="button"
+            className="font-medium text-primary hover:underline"
+            onClick={() => void stats.refetch()}
+          >
+            Retry totals
+          </button>
+        </p>
+      )}
       <Toolbar
         left={
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-full sm:w-80">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, city or registration no…"
+              maxLength={200}
+              onChange={(e) => change('q', e.target.value)}
+              placeholder="Search all institutes…"
+              aria-label="Search all institutes"
               className="h-10 pl-9"
             />
           </div>
         }
         right={
-          <div className="flex flex-wrap gap-1.5">
-            {TABS.map((s) => (
-              <Button
-                key={s}
-                size="sm"
-                variant={s === status ? 'default' : 'outline'}
-                onClick={() => setStatus(s)}
-              >
-                {STATUS_META[s].label}
-              </Button>
-            ))}
-          </div>
+          <>
+            <Select value={status} onValueChange={(value) => change('status', value)}>
+              <SelectTrigger className="h-10 w-36" aria-label="Institute verification status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {Object.entries(STATUS_META).map(([value, meta]) => (
+                  <SelectItem key={value} value={value}>
+                    {meta.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={plan} onValueChange={(value) => change('plan', value)}>
+              <SelectTrigger className="h-10 w-44" aria-label="Subscription plan">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plans</SelectItem>
+                {Object.entries(PLAN_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="UNCONFIGURED">Not configured</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
       />
-
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getKey={(i) => String(i.instituteId)}
-        empty={`No institutes are ${STATUS_META[status].label.toLowerCase()}.`}
-      />
-
-      <ReviewDialog institute={reviewing} onClose={() => setReviewing(null)} />
-    </div>
-  );
-}
-
-/** Approve, send back with corrections, or withdraw access from a verified institute. */
-function ReviewDialog({
-  institute,
-  onClose,
-}: {
-  institute: InstituteProfile | null;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const [notes, setNotes] = useState('');
-
-  const done = (message: string) => {
-    toast.success(message);
-    qc.invalidateQueries({ queryKey: ['admin', 'institutes'] });
-    setNotes('');
-    onClose();
-  };
-  const failed = (e: unknown) =>
-    toast.error('Could not complete', {
-      description: e instanceof ApiError || e instanceof Error ? e.message : 'Please try again.',
-    });
-
-  const decide = useMutation({
-    mutationFn: (approve: boolean) =>
-      adminInstituteService.decide(institute!.instituteId, approve, notes.trim() || undefined),
-    onSuccess: (_d, approve) => done(approve ? 'Institute verified' : 'Sent back for corrections'),
-    onError: failed,
-  });
-
-  const suspend = useMutation({
-    mutationFn: () => adminInstituteService.suspend(institute!.instituteId, notes.trim()),
-    onSuccess: () => done('Institute suspended'),
-    onError: failed,
-  });
-
-  const busy = decide.isPending || suspend.isPending;
-  const verified = institute?.status === 'VERIFIED';
-
-  return (
-    <Dialog open={!!institute} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {institute?.displayName || institute?.legalName || 'Institute'}
-          </DialogTitle>
-          <DialogDescription>
-            {verified
-              ? 'This institute is verified. Suspending withdraws its hiring access.'
-              : 'Approve to grant hiring access, or send it back with what needs fixing.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {institute && (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border bg-secondary/30 p-3.5 text-sm">
-            <Detail label="Legal name" value={institute.legalName} />
-            <Detail label="Entity" value={institute.entityType?.replace(/_/g, ' ').toLowerCase()} />
-            <Detail label="Registration" value={institute.registrationNo} />
-            <Detail label="Regulator" value={institute.regulator} />
-            <Detail label="Signatory" value={institute.contactPerson} />
-            <Detail
-              label="Address"
-              value={[institute.address, institute.area, institute.cityName].filter(Boolean).join(', ')}
-            />
-          </dl>
-        )}
-
-        <div>
-          <label htmlFor="notes" className="text-sm font-medium">
-            Notes
-          </label>
-          <textarea
-            id="notes"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={
-              verified
-                ? 'Why is access being withdrawn? The institute sees this.'
-                : 'Required when sending back — say exactly what to fix.'
-            }
-            className="mt-1.5 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2">
-          {verified ? (
-            <Button variant="destructive" disabled={busy || !notes.trim()} onClick={() => suspend.mutate()}>
-              {suspend.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-              Suspend
-            </Button>
+      <p className="mb-3 shrink-0 text-xs text-muted-foreground" role="status">
+        {loading
+          ? 'Searching institutes…'
+          : `Search covers all institutes. ${stats.data ? `${stats.data.paidSubscribers.toLocaleString()} active paid-plan subscribers. ` : ''}Spend includes paid plan invoices in PKR.`}
+      </p>
+      <section
+        aria-label="Institute records"
+        className="flex h-[65dvh] min-h-[22rem] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft lg:h-auto lg:min-h-0 lg:flex-1"
+      >
+        <div className="min-h-0 flex-1">
+          {isError && !debouncing ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
+              Could not load institutes.
+              <Button variant="outline" onClick={() => void refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : isPending || debouncing ? (
+            <div className="space-y-3 p-4" aria-label="Loading institutes">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
           ) : (
-            <>
-              <Button
-                variant="outline"
-                disabled={busy || !notes.trim()}
-                onClick={() => decide.mutate(false)}
-              >
-                {decide.isPending && !decide.variables ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-                Send back
-              </Button>
-              <Button variant="gradient" disabled={busy} onClick={() => decide.mutate(true)}>
-                {decide.isPending && decide.variables ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-                Approve
-              </Button>
-            </>
+            <div
+              className={`h-full min-h-0 ${isPlaceholderData ? 'opacity-50' : ''}`}
+              inert={isPlaceholderData || undefined}
+              aria-busy={isFetching}
+            >
+              <DataTable
+                key={`${status}:${plan}:${search}:${size}:${data?.page ?? page}`}
+                embedded
+                scrollable
+                columns={columns}
+                rows={data?.items ?? []}
+                getKey={(s) => String(s.instituteId)}
+                empty={
+                  search
+                    ? 'No institutes match this search and filters.'
+                    : 'No institutes match these filters.'
+                }
+              />
+            </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Detail({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="truncate font-medium">{value || '—'}</dd>
+        <TablePagination
+          embedded
+          page={data?.page ?? 0}
+          pageSize={size}
+          total={data?.total ?? 0}
+          disabled={loading || isError || !data}
+          itemLabel="institutes"
+          onPageChange={(p) => change('page', String(p + 1))}
+          onPageSizeChange={(s) => change('size', String(s))}
+        />
+      </section>
     </div>
   );
 }

@@ -132,8 +132,7 @@ export interface AuthResult {
 
 /** Login either completes (tokens + user) or asks for a two-factor code (challengeId). */
 export type LoginOutcome =
-  | { twoFactorRequired: true; challengeId: string }
-  | ({ twoFactorRequired: false } & AuthResult);
+  { twoFactorRequired: true; challengeId: string } | ({ twoFactorRequired: false } & AuthResult);
 
 /** Shape of the backend LoginResponse. */
 interface LoginResponseDto {
@@ -191,6 +190,8 @@ function tutorToUser(t: TutorResponse): User {
 
 /** Role-aware identity from GET /accounts/me. */
 interface AccountMe {
+  phoneVerified: boolean;
+  emailVerified: boolean;
   id: number;
   email?: string;
   phone: string;
@@ -214,7 +215,9 @@ function accountMeToUser(m: AccountMe): User {
     id: String(m.id),
     name: m.name ?? m.email ?? m.phone,
     email: m.email,
-    phone: m.phone,
+    phone: m.phone ?? '',
+    phoneVerified: m.phoneVerified,
+    emailVerified: m.emailVerified,
     role: ROLE_MAP[m.role],
     city: (m.city as City | undefined) ?? undefined,
     avatarUrl: m.photoUrl,
@@ -356,10 +359,7 @@ export const authService = {
     phoneCode: string;
     emailCode: string;
   }): Promise<User> {
-    const tokens = await http.post<TokenResponse>(
-      '/accounts/register/institute/verify-otp',
-      input,
-    );
+    const tokens = await http.post<TokenResponse>('/accounts/register/institute/verify-otp', input);
     setTokens(tokens.accessToken, tokens.refreshToken);
     return this.getMe();
   },
@@ -394,6 +394,10 @@ export const authService = {
    * Email + password login. Completes with tokens + user, or — when the account has 2FA enabled —
    * returns `{ twoFactorRequired: true, challengeId }` so the caller can collect the emailed code.
    */
+  async signInMethod(identifier: string): Promise<{ method: 'GOOGLE' | 'PASSWORD' }> {
+    return http.post('/auth/sign-in-method', { identifier });
+  },
+
   async login(payload: LoginPayload): Promise<LoginOutcome> {
     const res = await http.post<LoginResponseDto>('/auth/login', payload);
     if (res.twoFactorRequired || !res.tokens) {

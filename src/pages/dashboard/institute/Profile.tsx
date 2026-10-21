@@ -308,7 +308,7 @@ export default function InstituteProfilePage() {
         {/* The registered email is the account's login and where invoices go, so it is a proved
             fact rather than a text field: changing it takes a code sent to the new address, the
             same process a tutor goes through. */}
-        <VerifiedContactField channel="EMAIL" value={user?.email} onEdit={setChangingChannel} />
+        <VerifiedContactField channel="EMAIL" verified={user?.emailVerified} value={user?.email} onEdit={setChangingChannel} />
         <Text
           id="regulator"
           label="Regulator"
@@ -347,7 +347,7 @@ export default function InstituteProfilePage() {
           error={errorFor('contactCnic')}
         />
         {/* Same treatment as the email: the account's number, changed only by proving the new one. */}
-        <VerifiedContactField channel="PHONE" value={user?.phone} onEdit={setChangingChannel} />
+        <VerifiedContactField channel="PHONE" verified={user?.phoneVerified} value={user?.phone} onEdit={setChangingChannel} />
         <div>
           <Label htmlFor="cityId">City</Label>
           <Select value={form.cityId} onValueChange={set('cityId')}>

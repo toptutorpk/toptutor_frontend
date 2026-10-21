@@ -14,18 +14,20 @@ import { normalizeIdentifier } from '@/lib/phone';
 import { dashboardHome } from '@/constants/navigation';
 import { toast } from '@/components/ui/sonner';
 import type { User } from '@/types';
+import { authService } from '@/services/authService';
+import { ApiError } from '@/api/client';
 
 const schema = z.object({
   // Accepts an email OR a phone number (students/parents may log in with phone).
   email: z.string().min(3, 'Enter your email or phone'),
-  // Login only checks the field is present — it must NOT reveal the password policy
-  // (min length, etc.). The server answers with a generic "invalid credentials".
-  password: z.string().min(1, 'Password is required'),
+  // Required only at the password step; Google-only accounts never need to enter one.
+  password: z.string(),
 });
 type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
+  const [step, setStep] = useState<'identifier' | 'password' | 'google'>('identifier');
   const login = useAuthStore((s) => s.login);
   const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
   const navigate = useNavigate();
@@ -43,8 +45,14 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
+    setValue,
+    clearErrors,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: '', password: '' },
+  });
 
   /**
    * Where a signed-in account belongs.
@@ -64,6 +72,17 @@ export default function LoginPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
+      if (step === 'identifier') {
+        const result = await authService.signInMethod(normalizeIdentifier(values.email));
+        setValue('password', '');
+        setStep(result.method === 'GOOGLE' ? 'google' : 'password');
+        return;
+      }
+      if (step !== 'password') return;
+      if (!values.password) {
+        setError('password', { message: 'Password is required' });
+        return;
+      }
       // The identifier is canonicalised before it is sent, so signing in with 03001234567 reaches
       // the account registered as +923001234567. Without this, accepting three input formats at
       // registration would simply move the problem to the login form. Emails and anything that is
@@ -76,8 +95,20 @@ export default function LoginPage() {
       }
       toast.success('Welcome back!');
       goToDashboard(result.user);
-    } catch {
-      toast.error('Login failed', { description: 'Please check your credentials and try again.' });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'GOOGLE_SIGN_IN_REQUIRED') {
+        setValue('password', '');
+        setStep('google');
+        return;
+      }
+      toast.error('Unable to sign in', {
+        description:
+          error instanceof ApiError && error.code === 'TOO_MANY_ATTEMPTS'
+            ? error.message
+            : step === 'identifier'
+              ? 'We could not check your sign-in method. Please try again.'
+              : 'Please check your credentials and try again.',
+      });
     }
   };
 
@@ -101,7 +132,10 @@ export default function LoginPage() {
   if (challengeId) {
     return (
       <div>
-        <AuthHeader title="Two-factor authentication" subtitle="Enter the 6-digit code we emailed you." />
+        <AuthHeader
+          title="Two-factor authentication"
+          subtitle="Enter the 6-digit code we emailed you."
+        />
         <div className="space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
             <ShieldCheck className="h-6 w-6" />
@@ -168,7 +202,22 @@ export default function LoginPage() {
         </div>
       )}
 
-      <SocialButtons />
+      {step !== 'google' && <SocialButtons />}
+      {step === 'google' && (
+        <div
+          role="status"
+          className="mb-5 space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-5"
+        >
+          <div className="flex items-center gap-2 font-semibold">
+            <ShieldCheck className="h-5 w-5 text-primary" /> Continue with Google
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This account uses Google sign-in. Continue with the Google account associated with your
+            email address.
+          </p>
+          <SocialButtons divider={false} />
+        </div>
+      )}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email or phone</Label>
@@ -180,43 +229,74 @@ export default function LoginPage() {
               placeholder="you@email.com or 03001234567"
               autoComplete="username"
               className="pl-9"
+              readOnly={step !== 'identifier' || isSubmitting}
+              maxLength={254}
               {...register('email')}
             />
           </div>
           {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
-            <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">
-              Forgot password?
-            </Link>
+        {step === 'password' && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Link
+                to="/forgot-password"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPw ? 'text' : 'password'}
+              autoComplete="current-password"
+                placeholder="••••••••"
+                className="pr-10"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((s) => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
           </div>
-          <div className="relative">
-            <Input
-              id="password"
-              type={showPw ? 'text' : 'password'}
-              placeholder="••••••••"
-              className="pr-10"
-              {...register('password')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw((s) => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showPw ? 'Hide password' : 'Show password'}
-            >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-        </div>
+        )}
 
-        <Button type="submit" variant="gradient" size="lg" className="w-full" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          Log in
-        </Button>
+        {step !== 'google' && (
+          <Button
+            type="submit"
+            variant="gradient"
+            size="lg"
+            className="w-full"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {step === 'identifier' ? 'Continue' : 'Log in'}
+          </Button>
+        )}
+        {step !== 'identifier' && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            disabled={isSubmitting}
+            onClick={() => {
+              setStep('identifier');
+              setValue('password', '');
+              clearErrors();
+            }}
+          >
+            Use another email or phone
+          </Button>
+        )}
       </form>
 
       <div className="mt-4 rounded-xl border bg-secondary/40 p-3 text-center text-xs text-muted-foreground">

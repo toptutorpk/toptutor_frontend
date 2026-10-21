@@ -33,12 +33,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { RatingStars } from '@/components/common/RatingStars';
 import { VerificationBadge } from '@/components/common/VerificationBadge';
 import { VerificationSteps } from '@/components/tutor/VerificationSteps';
-import { ReviewCard } from '@/components/reviews/ReviewCard';
-import { reviewService, type PublicReview, type PublicReviews } from '@/services/reviewService';
+import { TutorReviews } from '@/components/reviews/TutorReviews';
 import { BookingPanel } from '@/components/booking/BookingPanel';
 import { LoadingState, ErrorState } from '@/components/common/StateViews';
 import { isPublicTutor } from '@/services/tutorService';
@@ -48,42 +46,6 @@ import { useUIStore } from '@/store/uiStore';
 export default function TutorProfilePage() {
   const { slug = '' } = useParams();
   const { data: tutor, isLoading, isError, refetch } = useTutor(slug);
-  const { data: publicReviews } = useQuery({
-    queryKey: ['reviews', 'public', tutor?.id],
-    queryFn: () => reviewService.publicForTutor(Number(tutor!.id)),
-    enabled: !!tutor?.id,
-  });
-  // Helpful votes: the count and pressed state change at once, then settle to the server's answer.
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const signedIn = useAuthStore((s) => s.isAuthenticated);
-  const reviewsKey = ['reviews', 'public', tutor?.id];
-  const patchReview = (id: number, patch: Partial<PublicReview>) =>
-    qc.setQueryData<PublicReviews>(reviewsKey, (old) =>
-      old ? { ...old, reviews: old.reviews.map((r) => (r.id === id ? { ...r, ...patch } : r)) } : old,
-    );
-  const helpfulVote = useMutation({
-    mutationFn: ({ id, helpful }: { id: number; helpful: boolean }) => reviewService.setHelpful(id, helpful),
-    onMutate: ({ id, helpful }) => {
-      const before = publicReviews?.reviews.find((r) => r.id === id);
-      if (before) patchReview(id, { helpful, helpfulCount: before.helpfulCount + (helpful ? 1 : -1) });
-      return before;
-    },
-    onSuccess: (res, { id }) => patchReview(id, { helpful: res.helpful, helpfulCount: res.helpfulCount }),
-    onError: (e: unknown, { id }, before) => {
-      if (before) patchReview(id, { helpful: before.helpful, helpfulCount: before.helpfulCount });
-      toast.error('Couldn’t save your vote', { description: (e as Error).message });
-    },
-  });
-  const voteHelpful = (id: number, helpful: boolean) => {
-    if (!signedIn) {
-      toast('Sign in to mark reviews as helpful', {
-        action: { label: 'Sign in', onClick: () => navigate('/login') },
-      });
-      return;
-    }
-    if (!helpfulVote.isPending) helpfulVote.mutate({ id, helpful });
-  };
   const isFav = useUIStore((s) => (tutor ? s.favorites.includes(tutor.id) : false));
   const toggleFav = useUIStore((s) => s.toggleFavorite);
   // Session mode (online / home visit) is shared: the availability toggle drives the pricing card.
@@ -338,67 +300,12 @@ export default function TutorProfilePage() {
                     </p>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card p-6 shadow-soft sm:flex-row sm:items-center">
-                      <div className="text-center">
-                        <div className="font-display text-5xl font-extrabold text-gradient">
-                          {tutor.rating.toFixed(1)}
-                        </div>
-                        <RatingStars value={tutor.rating} size={16} className="mt-1 justify-center" />
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {tutor.reviewCount} reviews
-                        </div>
-                      </div>
-                      <Separator orientation="vertical" className="hidden h-20 sm:block" />
-                      <div className="flex-1 space-y-1.5">
-                        {/* Share of real reviews at each star rating. */}
-                        {[5, 4, 3, 2, 1].map((star) => {
-                          const counts = publicReviews?.ratingCounts ?? {};
-                          const total = Object.values(counts).reduce((a, b) => a + b, 0);
-                          const count = counts[String(star)] ?? 0;
-                          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                          return (
-                            <div key={star} className="flex items-center gap-2 text-sm">
-                              <span className="w-3 text-muted-foreground">{star}</span>
-                              <div className="h-2 flex-1 overflow-hidden rounded-[3px] bg-secondary">
-                                <div
-                                  className="h-full rounded-[3px] bg-gold-400 transition-[width] duration-500"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                              <span
-                                className="w-8 text-right text-xs text-muted-foreground"
-                                title={`${count} review${count === 1 ? '' : 's'}`}
-                              >
-                                {pct}%
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {(publicReviews?.reviews ?? []).map((r) => (
-                        <ReviewCard
-                          key={r.id}
-                          review={{
-                            id: String(r.id),
-                            tutorId: String(tutor.id),
-                            authorName: r.authorName,
-                            authorAvatar: r.authorAvatar ?? undefined,
-                            rating: r.rating,
-                            comment: r.comment ?? '',
-                            date: r.date,
-                            tutorResponse: r.tutorResponse ?? undefined,
-                            helpfulCount: r.helpfulCount,
-                          }}
-                          helpful={r.helpful}
-                          own={r.own}
-                          onHelpful={() => voteHelpful(r.id, !r.helpful)}
-                        />
-                      ))}
-                    </div>
-                  </>
+                  <TutorReviews
+                    tutorId={Number(tutor.id)}
+                    firstName={tutor.name.split(' ')[0]}
+                    rating={tutor.rating}
+                    reviewCount={tutor.reviewCount}
+                  />
                 )}
               </TabsContent>
             </Tabs>

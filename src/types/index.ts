@@ -23,6 +23,8 @@ export type City =
 export type GenderPreference = 'male' | 'female' | 'any';
 
 export interface User {
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
   id: string;
   name: string;
   email?: string;

@@ -110,7 +110,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Alerts', to: '/admin/alerts', icon: 'Bell' },
   { label: 'Reports', to: '/admin/reports', icon: 'ShieldAlert' },
   { label: 'Tutors', to: '/admin/tutors', icon: 'GraduationCap' },
-  { label: 'Students', to: '/admin/students', icon: 'Users' },
+  { label: 'Students & Parents', to: '/admin/students', icon: 'Users' },
   { label: 'Institutes', to: '/admin/institutes', icon: 'Building2' },
   { label: 'Bookings', to: '/admin/bookings', icon: 'CalendarCheck' },
   { label: 'Payments', to: '/admin/payments', icon: 'Wallet' },
@@ -118,7 +118,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Payout accounts', to: '/admin/payout-accounts', icon: 'Landmark' },
   { label: 'Institute billing', to: '/admin/institute-billing', icon: 'ReceiptText' },
   { label: 'Analytics', to: '/admin/analytics', icon: 'BarChart3' },
-  { label: 'Settings', to: '/admin/settings', icon: 'Settings' },
+  { label: 'System Configurations', to: '/admin/system-configurations', icon: 'Settings' },
 ];
 
 export const DASHBOARD_NAV_BY_ROLE: Partial<Record<UserRole, NavItem[]>> = {

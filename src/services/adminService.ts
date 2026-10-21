@@ -51,6 +51,8 @@ export interface AdminProfile {
   modes?: string[];
   education?: AdminCredential[];
   certifications?: AdminCredential[];
+  courses?: { abbreviation: string; title: string }[];
+  videoIntroYoutubeId?: string;
 }
 
 /**
@@ -77,6 +79,8 @@ export interface IntroVideoStatus {
 }
 
 export interface AdminTutorDetail {
+  phoneVerified: boolean;
+  emailVerified: boolean;
   summary: AdminTutorSummary;
   profile?: AdminProfile;
   verification: VerificationView;
@@ -100,6 +104,17 @@ export interface SystemParameter {
   key: string;
   value: string;
   description?: string;
+}
+
+export interface SystemParameterChange {
+  id: number;
+  key: string;
+  previousValue: string;
+  newValue: string;
+  actorId: number;
+  adminEmail: string | null;
+  note: string;
+  createdAt: string;
 }
 
 /** Where a misconduct report has got to. Mirrors the backend's ReportStatus. */
@@ -158,6 +173,10 @@ export interface TutorStanding {
 export const adminService = {
   stats: () => http.get<AdminStats>('/admin/stats'),
   tutors: () => http.getAllPages<AdminTutorSummary>('/admin/tutors'),
+  tutorsPage: (
+    params: { page: number; size: number; status?: string; verification?: string },
+    signal?: AbortSignal,
+  ) => http.getPage<AdminTutorSummary>('/admin/tutors', { params, signal }),
   tutor: (id: number) => http.get<AdminTutorDetail>(`/admin/tutors/${id}`),
   // Alerts (e.g. contact-info violations)
   notifications: () => http.getAllPages<AdminNotification>('/admin/notifications'),
@@ -166,8 +185,12 @@ export const adminService = {
   resolveNotification: (id: number) => http.post<void>(`/admin/notifications/${id}/resolve`),
   // System parameters
   parameters: () => http.get<SystemParameter[]>('/admin/parameters'),
-  updateParameter: (key: string, value: string) =>
-    http.put<SystemParameter[]>(`/admin/parameters/${key}?value=${encodeURIComponent(value)}`),
+  parameterHistory: (params: { key?: string; page: number; size: number }, signal?: AbortSignal) =>
+    http.getPage<SystemParameterChange>('/admin/parameters/history', { params, signal }),
+  updateParameter: (
+    key: string,
+    body: { value: string; expectedValue: string; note: string; password: string },
+  ) => http.put<SystemParameter[]>(`/admin/parameters/${encodeURIComponent(key)}`, body),
   decide: (id: number, decision: 'APPROVE' | 'REJECT' | 'FLAG', notes?: string) =>
     http.post<AdminTutorDetail>(`/admin/tutors/${id}/decision`, { decision, notes }),
   /** Approve or reject a single uploaded document. */

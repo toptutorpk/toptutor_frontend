@@ -165,30 +165,25 @@ const today = () => format(new Date(), 'yyyy-MM-dd');
  * people who most need to report are often the least able to supply those, and every extra
  * mandatory box is a reason to abandon the page. A vague report is still a report.
  */
-const schema = z
-  .object({
-    category: z.enum(CATEGORY_VALUES, { message: 'Choose what the report is about' }),
-    description: z
-      .string()
-      .trim()
-      .min(30, 'Please give at least a couple of sentences so we can look into it')
-      .max(4000, 'Please keep this under 4000 characters'),
-    subjectName: z.string().trim().max(160, 'Please keep this under 160 characters').optional(),
-    subjectRole: z.string().optional(),
-    subjectProfileUrl: z
-      .string()
-      .trim()
-      .max(500, 'Please keep this under 500 characters')
-      .optional(),
-    channel: z.string().optional(),
-    occurredOn: z
-      .string()
-      .optional()
-      .refine((v) => !v || v <= today(), 'The date cannot be in the future'),
-    accurate: z.boolean().refine((v) => v, {
-      message: 'Please confirm the report is accurate before sending it',
-    }),
-  });
+const schema = z.object({
+  category: z.enum(CATEGORY_VALUES, { message: 'Choose what the report is about' }),
+  description: z
+    .string()
+    .trim()
+    .min(30, 'Please give at least a couple of sentences so we can look into it')
+    .max(4000, 'Please keep this under 4000 characters'),
+  subjectName: z.string().trim().max(160, 'Please keep this under 160 characters').optional(),
+  subjectRole: z.string().optional(),
+  subjectProfileUrl: z.string().trim().max(500, 'Please keep this under 500 characters').optional(),
+  channel: z.string().optional(),
+  occurredOn: z
+    .string()
+    .optional()
+    .refine((v) => !v || v <= today(), 'The date cannot be in the future'),
+  accurate: z.boolean().refine((v) => v, {
+    message: 'Please confirm the report is accurate before sending it',
+  }),
+});
 // Nothing here collects the reporter's name, email or phone. Reporting requires an account, so
 // those are read from it server-side — see ReachYou below, which shows what will be attached.
 
@@ -247,9 +242,9 @@ function SignInFirst() {
             Sign in to file a report
           </h2>
           <p className="mt-2 max-w-xl leading-relaxed text-muted-foreground">
-            Reports can lead to an account being suspended or removed, so each one has to be tied
-            to a real account. Signing in also lets us come back to you with a question and tell
-            you the outcome.
+            Reports can lead to an account being suspended or removed, so each one has to be tied to
+            a real account. Signing in also lets us come back to you with a question and tell you
+            the outcome.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild variant="gradient">
@@ -393,9 +388,7 @@ function ReportForm({ onFiled }: { onFiled: (receipt: MisconductReceipt) => void
                   key={option.value}
                   option={option}
                   selected={category === option.value}
-                  onSelect={() =>
-                    setValue('category', option.value, { shouldValidate: true })
-                  }
+                  onSelect={() => setValue('category', option.value, { shouldValidate: true })}
                 />
               ))}
             </div>
@@ -438,13 +431,20 @@ function ReportForm({ onFiled }: { onFiled: (receipt: MisconductReceipt) => void
               hint="Paste the page address if you have it — it is the fastest way for us to find them."
               error={errors.subjectProfileUrl?.message}
             >
-              <Input placeholder="https://toptutor.pk/tutors/…" {...register('subjectProfileUrl')} />
+              <Input
+                placeholder="https://toptutor.pk/tutors/…"
+                {...register('subjectProfileUrl')}
+              />
             </Field>
           </fieldset>
 
           {/* ---- 3. Where and when ------------------------------------------ */}
           <fieldset className="space-y-4">
-            <Step n={3} title="Where and when?" note="Optional, but it helps us find the evidence." />
+            <Step
+              n={3}
+              title="Where and when?"
+              note="Optional, but it helps us find the evidence."
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Where did it happen?">
                 <Select value={channel || undefined} onValueChange={(v) => setValue('channel', v)}>
@@ -517,7 +517,9 @@ function ReportForm({ onFiled }: { onFiled: (receipt: MisconductReceipt) => void
                 filing a false report can lead to my account being suspended.
               </span>
             </label>
-            {errors.accurate && <p className="text-sm text-destructive">{errors.accurate.message}</p>}
+            {errors.accurate && (
+              <p className="text-sm text-destructive">{errors.accurate.message}</p>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button type="submit" variant="gradient" size="lg" disabled={submitting}>
@@ -620,7 +622,11 @@ function Submitted({
                 {receipt.reference}
               </code>
               <Button type="button" variant="outline" size="sm" onClick={copy}>
-                {copied ? <Check className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+                {copied ? (
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                )}
                 {copied ? 'Copied' : 'Copy'}
               </Button>
             </div>
@@ -707,7 +713,17 @@ function HowItIsHandled() {
 /*  Small pieces                                                               */
 /* -------------------------------------------------------------------------- */
 
-function Step({ n, title, note, required }: { n: number; title: string; note?: string; required?: boolean }) {
+function Step({
+  n,
+  title,
+  note,
+  required,
+}: {
+  n: number;
+  title: string;
+  note?: string;
+  required?: boolean;
+}) {
   return (
     <div>
       <h2 className="font-display text-xl font-bold tracking-tight">
@@ -747,9 +763,7 @@ function CategoryCard({
       <span
         className={cn(
           'flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-btn)] transition-colors',
-          selected
-            ? 'bg-brand-600 text-white'
-            : 'bg-secondary text-muted-foreground',
+          selected ? 'bg-brand-600 text-white' : 'bg-secondary text-muted-foreground',
         )}
       >
         <option.icon className="h-4.5 w-4.5" />
@@ -796,16 +810,18 @@ function ReachYou() {
       <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
         <Detail label="Name" value={data?.name} loading={isLoading} />
         <Detail label="Email" value={data?.email} loading={isLoading} />
-        <Detail label="Phone" value={data?.phone} loading={isLoading} />
+        <Detail label="Phone" value={data?.phone} loading={isLoading} maskedPhone />
       </dl>
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Taken from your account, so there is nothing to fill in — partly hidden here in case
-        someone is looking over your shoulder. The team sees it in full.{' '}
-        <Link to="/dashboard/student/profile" className="font-medium text-brand-600 hover:underline">
+        Taken from your account, so there is nothing to fill in — partly hidden here in case someone
+        is looking over your shoulder. The team sees it in full.{' '}
+        <Link
+          to="/dashboard/student/profile"
+          className="font-medium text-brand-600 hover:underline"
+        >
           Update your details
         </Link>{' '}
-        if any of this is out of date. The person you are reporting is never told who reported
-        them.
+        if any of this is out of date. The person you are reporting is never told who reported them.
       </p>
     </div>
   );
@@ -815,16 +831,22 @@ function Detail({
   label,
   value,
   loading,
+  maskedPhone = false,
 }: {
   label: string;
   value?: string | null;
   loading?: boolean;
+  maskedPhone?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="truncate font-medium">
-        {loading ? <span className="inline-block h-4 w-28 animate-pulse rounded bg-muted" /> : value || '—'}
+      <dd className={cn('truncate font-medium', maskedPhone && 'font-mono tabular-nums')}>
+        {loading ? (
+          <span className="inline-block h-4 w-28 animate-pulse rounded bg-muted" />
+        ) : (
+          value || '—'
+        )}
       </dd>
     </div>
   );

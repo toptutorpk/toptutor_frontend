@@ -59,8 +59,23 @@ export interface PublicReviews {
   rating: number | null;
   reviewCount: number;
   reviews: PublicReview[];
-  /** How many reviews have each star rating, keys "1".."5". */
+  /** How many reviews have each star rating, keys "1".."5". Always over ALL reviews. */
   ratingCounts: Record<string, number>;
+  /** Zero-based page of `reviews`. */
+  page: number;
+  size: number;
+  /** Reviews matching the star filter — what the pager pages through. */
+  total: number;
+}
+
+export type PublicReviewSort = 'NEWEST' | 'HIGHEST' | 'LOWEST' | 'HELPFUL';
+
+export interface PublicReviewQuery {
+  page: number;
+  size: number;
+  sort: PublicReviewSort;
+  /** Only this star level; omitted for all. */
+  rating?: number;
 }
 
 /** A review's helpful count after the viewer's vote. */
@@ -83,7 +98,11 @@ export const reviewService = {
   respond: (reviewId: number, response: string) =>
     http.post<void>(`/reviews/${reviewId}/response`, { response }),
   /** Public: a tutor's aggregate rating + review list. */
-  publicForTutor: (tutorId: number) => http.get<PublicReviews>(`/public/tutors/${tutorId}/reviews`),
+  /** Public: a tutor's rating summary and ONE page of reviews, filtered and sorted by the server. */
+  publicForTutor: (tutorId: number, q: PublicReviewQuery) =>
+    http.get<PublicReviews>(`/public/tutors/${tutorId}/reviews`, {
+      params: { page: q.page, size: q.size, sort: q.sort, rating: q.rating },
+    }),
   /** Signed-in: mark a review helpful, or take the vote back. One vote per person. */
   setHelpful: (reviewId: number, helpful: boolean) =>
     helpful
